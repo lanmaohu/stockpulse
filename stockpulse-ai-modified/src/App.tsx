@@ -23,8 +23,8 @@ import { ErrorDisplay } from './components/ErrorDisplay';
  * 4. 友好的错误提示
  */
 export default function App() {
-  // 当前激活的标签页
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'dcf'>('dashboard');
+  // 当前激活的标签页（默认显示 DCF 估值页面）
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'dcf'>('dcf');
   
   // 搜索输入框的值
   const [searchInput, setSearchInput] = useState('AAPL');
@@ -114,27 +114,27 @@ interface SidebarProps {
 function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
     <div className="fixed left-0 top-0 bottom-0 w-16 border-r border-zinc-800 flex flex-col items-center py-8 gap-8 bg-zinc-950 z-50">
-      {/* Logo */}
+      {/* Logo - 点击返回 DCF 估值首页 */}
       <div
         className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 cursor-pointer"
-        onClick={() => onTabChange('dashboard')}
+        onClick={() => onTabChange('dcf')}
       >
         <Activity className="text-black w-6 h-6" />
       </div>
 
-      {/* 导航项 */}
+      {/* 导航项 - DCF估值(首页) 在前，仪表盘 在后 */}
       <div className="flex flex-col gap-6">
-        <NavButton
-          icon={BarChart3}
-          isActive={activeTab === 'dashboard'}
-          onClick={() => onTabChange('dashboard')}
-          label="仪表盘"
-        />
         <NavButton
           icon={PieChart}
           isActive={activeTab === 'dcf'}
           onClick={() => onTabChange('dcf')}
           label="DCF估值"
+        />
+        <NavButton
+          icon={BarChart3}
+          isActive={activeTab === 'dashboard'}
+          onClick={() => onTabChange('dashboard')}
+          label="仪表盘"
         />
         <NavButton
           icon={Users}
