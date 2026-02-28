@@ -98,23 +98,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    // 获取年度营收数据
+    // 获取年度营收数据 - 尝试多个可能的数据源
     const earnings = summary?.earnings || {};
     const financialData = summary?.financialData || {};
-    const annualData = earnings?.financialsChart?.annual || [];
+    
+    // 首先尝试 financialsChart.yearly
+    let yearlyData = earnings?.financialsChart?.yearly || [];
+    
+    // 如果没有 yearly，尝试 annual
+    if (!yearlyData || yearlyData.length === 0) {
+      yearlyData = earnings?.financialsChart?.annual || [];
+    }
+
+    console.log(`[API] ${trimmedSymbol} yearlyData:`, JSON.stringify(yearlyData).substring(0, 200));
 
     // 转换为标准格式
-    const revenues = annualData
-      .filter((item: any) => item.revenue && item.date)
+    const revenues = yearlyData
+      .filter((item: any) => {
+        // 支持多种字段名
+        const revenue = item.revenue || item.totalRevenue || item.Revenue;
+        const year = item.date || item.year || item.fiscalYear;
+        return revenue && year;
+      })
       .map((item: any) => ({
-        year: item.date,
-        value: item.revenue,
+        year: String(item.date || item.year || item.fiscalYear),
+        value: item.revenue || item.totalRevenue || item.Revenue,
       }))
       .sort((a: any, b: any) => parseInt(a.year) - parseInt(b.year));
 
+    console.log(`[API] ${trimmedSymbol} parsed revenues:`, revenues);
+
     if (revenues.length < 2) {
       return res.status(404).json(
-        createAPIError(ErrorType.NO_DATA_AVAILABLE, '营收数据不足，无法计算增长率')
+        createAPIError(ErrorType.NO_DATA_AVAILABLE, `营收数据不足 (${revenues.length} 年)，无法计算增长率`)
       );
     }
 
