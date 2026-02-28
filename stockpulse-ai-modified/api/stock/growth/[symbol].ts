@@ -102,37 +102,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const earnings = summary?.earnings || {};
     const financialData = summary?.financialData || {};
     
+    // 调试信息
+    const debugInfo: any = {
+      hasEarnings: !!summary?.earnings,
+      hasFinancialsChart: !!earnings?.financialsChart,
+      yearlyLength: earnings?.financialsChart?.yearly?.length || 0,
+      annualLength: earnings?.financialsChart?.annual?.length || 0,
+      quarterlyLength: earnings?.financialsChart?.quarterly?.length || 0,
+    };
+
     // 首先尝试 financialsChart.yearly
-    let yearlyData = earnings?.financialsChart?.yearly || [];
+    let yearlyData: any[] = [];
     
+    if (earnings?.financialsChart?.yearly && Array.isArray(earnings.financialsChart.yearly)) {
+      yearlyData = earnings.financialsChart.yearly;
+    }
+    
+    debugInfo.source1_yearly = yearlyData.length;
+
     // 如果没有 yearly，尝试 annual
-    if (!yearlyData || yearlyData.length === 0) {
-      yearlyData = earnings?.financialsChart?.annual || [];
+    if (yearlyData.length === 0 && earnings?.financialsChart?.annual && Array.isArray(earnings.financialsChart.annual)) {
+      yearlyData = earnings.financialsChart.annual;
+      debugInfo.source2_annual = yearlyData.length;
     }
     
     // 如果还没有数据，尝试从 quarterly 数据聚合（取每年最后一个季度）
-    if (!yearlyData || yearlyData.length === 0) {
-      const quarterly = earnings?.financialsChart?.quarterly || [];
-      if (quarterly && quarterly.length > 0) {
-        // 按年份分组，取每个年份最后一个季度的数据
-        const yearMap = new Map();
-        quarterly.forEach((q: any) => {
-          const year = q.date?.substring(0, 4) || q.fiscalYear;
-          if (year && q.revenue) {
-            yearMap.set(year, { date: parseInt(year), revenue: q.revenue });
-          }
-        });
-        yearlyData = Array.from(yearMap.values()).sort((a: any, b: any) => a.date - b.date);
-      }
+    if (yearlyData.length === 0 && earnings?.financialsChart?.quarterly && Array.isArray(earnings.financialsChart.quarterly)) {
+      const quarterly = earnings.financialsChart.quarterly;
+      const yearMap = new Map();
+      quarterly.forEach((q: any) => {
+        const year = q.date?.substring(0, 4) || q.fiscalYear || (q.date ? String(q.date).substring(0, 4) : null);
+        if (year && q.revenue) {
+          yearMap.set(year, { date: parseInt(year), revenue: q.revenue });
+        }
+      });
+      yearlyData = Array.from(yearMap.values()).sort((a: any, b: any) => a.date - b.date);
+      debugInfo.source3_quarterly = yearlyData.length;
     }
-
-    console.log(`[API] ${trimmedSymbol} earnings:`, JSON.stringify(earnings).substring(0, 500));
-    console.log(`[API] ${trimmedSymbol} yearlyData:`, JSON.stringify(yearlyData).substring(0, 500));
 
     // 转换为标准格式
     const revenues = yearlyData
       .filter((item: any) => {
-        // 支持多种字段名
         const revenue = item.revenue || item.totalRevenue || item.Revenue;
         const year = item.date || item.year || item.fiscalYear;
         return revenue && year;
@@ -143,12 +153,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }))
       .sort((a: any, b: any) => parseInt(a.year) - parseInt(b.year));
 
-    console.log(`[API] ${trimmedSymbol} parsed revenues:`, revenues);
+    debugInfo.parsedRevenues = revenues.length;
+    debugInfo.sampleData = revenues.slice(0, 3);
 
     if (revenues.length < 2) {
-      return res.status(404).json(
-        createAPIError(ErrorType.NO_DATA_AVAILABLE, `营收数据不足 (${revenues.length} 年)，无法计算增长率`)
-      );
+      return res.status(404).json({
+        ...createAPIError(ErrorType.NO_DATA_AVAILABLE, `营收数据不足 (${revenues.length} 年)，无法计算增长率`),
+        debug: debugInfo,
+      });
     }
 
     // 计算增长率
@@ -206,6 +218,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         growthRate6to10: latestGrowthRate * 0.5,
         growthRate6to10Percent: (latestGrowthRate * 50).toFixed(2),
       },
+      
+      // 调试信息
+      debug: debugInfo,
     };
 
     return res.status(200).json(createAPISuccess(result));
