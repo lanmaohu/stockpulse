@@ -109,8 +109,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!yearlyData || yearlyData.length === 0) {
       yearlyData = earnings?.financialsChart?.annual || [];
     }
+    
+    // 如果还没有数据，尝试从 quarterly 数据聚合（取每年最后一个季度）
+    if (!yearlyData || yearlyData.length === 0) {
+      const quarterly = earnings?.financialsChart?.quarterly || [];
+      if (quarterly && quarterly.length > 0) {
+        // 按年份分组，取每个年份最后一个季度的数据
+        const yearMap = new Map();
+        quarterly.forEach((q: any) => {
+          const year = q.date?.substring(0, 4) || q.fiscalYear;
+          if (year && q.revenue) {
+            yearMap.set(year, { date: parseInt(year), revenue: q.revenue });
+          }
+        });
+        yearlyData = Array.from(yearMap.values()).sort((a: any, b: any) => a.date - b.date);
+      }
+    }
 
-    console.log(`[API] ${trimmedSymbol} yearlyData:`, JSON.stringify(yearlyData).substring(0, 200));
+    console.log(`[API] ${trimmedSymbol} earnings:`, JSON.stringify(earnings).substring(0, 500));
+    console.log(`[API] ${trimmedSymbol} yearlyData:`, JSON.stringify(yearlyData).substring(0, 500));
 
     // 转换为标准格式
     const revenues = yearlyData
