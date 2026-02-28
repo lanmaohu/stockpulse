@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import { ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Info, Search, Activity, ExternalLink, Loader2 } from 'lucide-react';
+import { Info, Search, Activity, ExternalLink, Loader2, TrendingUp, RefreshCw } from 'lucide-react';
 import { cn } from '../utils/cn';
 import type { StockData, DCFInputs, DCFResult } from '../types/stock';
 
@@ -98,6 +98,11 @@ export function DCFValuation({ stockData }: DCFValuationProps) {
     }
   };
 
+  // 批量更新多个输入值
+  const handleBatchInputChange = (updates: Partial<DCFInputs>) => {
+    setInputs((prev) => ({ ...prev, ...updates }));
+  };
+
   // 处理基础数值输入变化
   const handleBaseValueChange = (name: 'baseRevenue' | 'baseFCF', value: string) => {
     const rawValue = value.replace(/[^0-9.]/g, '');
@@ -162,9 +167,10 @@ export function DCFValuation({ stockData }: DCFValuationProps) {
       {/* 第2步：预测未来现金流 */}
       <Step2Section
         inputs={inputs}
-        financialData={financialData}
+        quote={quote}
         dcfResult={dcfResult}
         onInputChange={handleInputChange}
+        onBatchInputChange={handleBatchInputChange}
       />
 
       {/* 第3步：终值参数 */}
@@ -414,12 +420,71 @@ function Step1Section({ inputs, financialData, quote, onInputChange, onSync }: S
 
 interface Step2SectionProps {
   inputs: DCFInputs;
-  financialData: any;
+  quote: any;
   dcfResult: DCFResult;
   onInputChange: (name: keyof DCFInputs, value: string) => void;
+  onBatchInputChange: (updates: Partial<DCFInputs>) => void;
 }
 
-function Step2Section({ inputs, financialData, dcfResult, onInputChange }: Step2SectionProps) {
+function Step2Section({ inputs, quote, dcfResult, onInputChange, onBatchInputChange }: Step2SectionProps) {
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [growthData, setGrowthData] = useState<{
+    history: Array<{ year: string; revenue: number; growthRate: number | null; growthRatePercent: string | null }>;
+    latestYear: string;
+    latestGrowthRate: number;
+    avgGrowthRate: number;
+    suggestedDefaults: {
+      growthRate1to5: number;
+      growthRate1to5Percent: string;
+      growthRate6to10: number;
+      growthRate6to10Percent: string;
+    };
+  } | null>(null);
+  const [hasAutoApplied, setHasAutoApplied] = useState(false);
+
+  // 自动查询增长率数据
+  const fetchGrowthData = async (autoApply: boolean = false) => {
+    if (!quote?.symbol) return;
+
+    setLoading(true);
+    setFetchError(null);
+
+    try {
+      const response = await fetch(`/api/stock/growth/${quote.symbol}`);
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || '获取数据失败');
+      }
+
+      const data = result.data;
+      setGrowthData(data);
+
+      // 如果是自动应用或手动点击，使用建议值更新输入
+      if (autoApply || !hasAutoApplied) {
+        onBatchInputChange({
+          growthRate1to5: data.suggestedDefaults.growthRate1to5,
+          growthRate6to10: data.suggestedDefaults.growthRate6to10,
+        });
+        setHasAutoApplied(true);
+      }
+
+    } catch (err: any) {
+      console.error('获取增长率数据失败:', err);
+      setFetchError(err.message || '获取数据失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 组件挂载时自动查询
+  useEffect(() => {
+    if (quote?.symbol && !hasAutoApplied && !growthData) {
+      fetchGrowthData(true);
+    }
+  }, [quote?.symbol]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
       <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-8 shadow-sm space-y-6">
@@ -433,14 +498,76 @@ function Step2Section({ inputs, financialData, dcfResult, onInputChange }: Step2
         <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-indigo-500/10 rounded-lg">
-              <ExternalLink className="w-4 h-4 text-indigo-400" />
+              <TrendingUp className="w-4 h-4 text-indigo-400" />
             </div>
-            <div className="space-y-1">
-              <h4 className="text-xs font-bold text-white">数据参考与建议</h4>
+            <div className="flex-1 space-y-2">
+              <div className="flex justify-between items-start">
+                <h4 className="text-xs font-bold text-white">最近5年营收增长率</h4>
+                <button
+                  onClick={() => fetchGrowthData(false)}
+                  disabled={loading || !quote?.symbol}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 border",
+                    loading
+                      ? "bg-zinc-700 text-zinc-400 border-zinc-600 cursor-not-allowed"
+                      : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20"
+                  )}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      查询中...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3 h-3" />
+                      刷新数据
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {fetchError && (
+                <p className="text-[10px] text-rose-400">{fetchError}</p>
+              )}
+
+              {/* 最近5年增长率表格 */}
+              {growthData?.history && growthData.history.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="grid grid-cols-3 gap-2 text-[10px] text-zinc-500 uppercase">
+                    <span>年度</span>
+                    <span>营收</span>
+                    <span>增长率</span>
+                  </div>
+                  {growthData.history.map((item, index) => (
+                    <div
+                      key={item.year}
+                      className={cn(
+                        "grid grid-cols-3 gap-2 text-[10px] py-1 px-2 rounded",
+                        index === growthData.history.length - 1
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : "text-zinc-400"
+                      )}
+                    >
+                      <span>{item.year}</span>
+                      <span>${(item.revenue / 1e9).toFixed(1)}B</span>
+                      <span className={cn(
+                        item.growthRate && item.growthRate > 0 ? "text-emerald-400" : "text-rose-400"
+                      )}>
+                        {item.growthRatePercent ? `${item.growthRatePercent}%` : '-'}
+                      </span>
+                    </div>
+                  ))}
+                  <p className="text-[9px] text-zinc-500 mt-1">
+                    最近一年 ({growthData.latestYear}): {growthData.latestGrowthRate > 0 ? '+' : ''}{(growthData.latestGrowthRate * 100).toFixed(1)}%
+                  </p>
+                </div>
+              )}
+
               <p className="text-[10px] text-zinc-500 leading-relaxed">
                 <span className="text-zinc-400 font-medium">默认值设定逻辑：</span>
-                <br />• 1-5 年增长率：维持标的当前年度营收增长水平 ({(financialData?.revenueGrowth * 100 || 15).toFixed(1)}%)。
-                <br />• 6-10 年增长率：在 1-5 年基础上自动减少 50%（模拟企业进入成熟期后的增速放缓）。
+                <br />• 1-5 年增长率：使用最近一年增长率 ({growthData?.suggestedDefaults.growthRate1to5Percent || '--'}%)
+                <br />• 6-10 年增长率：最近一年的 50% ({growthData?.suggestedDefaults.growthRate6to10Percent || '--'}%)
               </p>
             </div>
           </div>
