@@ -1,10 +1,56 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import YahooFinance from 'yahoo-finance2';
-import { parseYahooFinanceError, createAPIError, createAPISuccess } from '../../../src/utils/errorHandler';
-import { ErrorType } from '../../../src/types/error';
 
 // @ts-ignore
 const yf = new YahooFinance();
+
+// 错误类型定义（内联，避免路径问题）
+enum ErrorType {
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  STOCK_NOT_FOUND = 'STOCK_NOT_FOUND',
+  INVALID_SYMBOL = 'INVALID_SYMBOL',
+  NO_DATA_AVAILABLE = 'NO_DATA_AVAILABLE',
+  API_RATE_LIMIT = 'API_RATE_LIMIT',
+  SERVER_ERROR = 'SERVER_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+}
+
+// 创建 API 错误响应
+function createAPIError(type: ErrorType, message: string) {
+  return {
+    success: false as const,
+    error: { type, message },
+  };
+}
+
+// 创建 API 成功响应
+function createAPISuccess<T>(data: T) {
+  return {
+    success: true as const,
+    data,
+  };
+}
+
+// 解析 Yahoo Finance 错误
+function parseYahooFinanceError(error: any): { type: ErrorType; message: string } {
+  const errorMessage = error?.message || error?.toString() || '';
+  const lowerMessage = errorMessage.toLowerCase();
+
+  if (lowerMessage.includes('not found') || lowerMessage.includes('no data found') || lowerMessage.includes('404')) {
+    return { type: ErrorType.STOCK_NOT_FOUND, message: '未找到该股票' };
+  }
+  if (lowerMessage.includes('too many') || lowerMessage.includes('rate limit') || lowerMessage.includes('429')) {
+    return { type: ErrorType.API_RATE_LIMIT, message: '请求过于频繁' };
+  }
+  if (lowerMessage.includes('network') || lowerMessage.includes('fetch failed') || lowerMessage.includes('timeout')) {
+    return { type: ErrorType.NETWORK_ERROR, message: '网络连接失败' };
+  }
+  if (lowerMessage.includes('internal server error') || lowerMessage.includes('500')) {
+    return { type: ErrorType.SERVER_ERROR, message: '服务器错误' };
+  }
+  
+  return { type: ErrorType.UNKNOWN_ERROR, message: errorMessage || '未知错误' };
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 设置 CORS 头
@@ -22,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 验证股票代码
   if (!symbol || typeof symbol !== 'string') {
     return res.status(400).json(
-      createAPIError('INVALID_SYMBOL' as ErrorType, '请提供正确的股票代码')
+      createAPIError(ErrorType.INVALID_SYMBOL, '请提供正确的股票代码')
     );
   }
 
@@ -53,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // 检查是否有数据
     if (!result || !result.quotes || result.quotes.length === 0) {
       return res.status(404).json(
-        createAPIError('NO_DATA_AVAILABLE' as ErrorType, '该时间段暂无历史数据')
+        createAPIError(ErrorType.NO_DATA_AVAILABLE, '该时间段暂无历史数据')
       );
     }
 
@@ -64,12 +110,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { type, message } = parseYahooFinanceError(error);
     
-    const statusCode = type === 'STOCK_NOT_FOUND' ? 404 : 
-                       type === 'API_RATE_LIMIT' ? 429 : 
-                       type === 'NETWORK_ERROR' ? 503 : 500;
+    const statusCode = type === ErrorType.STOCK_NOT_FOUND ? 404 : 
+                       type === ErrorType.API_RATE_LIMIT ? 429 : 
+                       type === ErrorType.NETWORK_ERROR ? 503 : 500;
 
-    return res.status(statusCode).json(
-      createAPIError(type as ErrorType, message)
-    );
+    return res.status(statusCode).json(createAPIError(type, message));
   }
 }
