@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import { ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Info, Search, Activity, ExternalLink } from 'lucide-react';
+import { Info, Search, Activity, ExternalLink, Loader2 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import type { StockData, DCFInputs, DCFResult } from '../types/stock';
 
@@ -116,9 +116,18 @@ export function DCFValuation({ stockData }: DCFValuationProps) {
     }
   };
 
-  // 同步最新数据
-  const syncLatestData = () => {
-    if (financialData?.freeCashflow && financialData?.totalRevenue) {
+  // 同步最新数据（从 API 获取的数据）
+  const syncLatestData = (revenue?: number, fcf?: number) => {
+    if (revenue !== undefined && fcf !== undefined) {
+      // 使用从 API 获取的数据
+      setInputs((prev) => ({
+        ...prev,
+        baseRevenue: revenue,
+        baseFCF: fcf,
+        fcfMargin: revenue > 0 ? fcf / revenue : prev.fcfMargin,
+      }));
+    } else if (financialData?.freeCashflow && financialData?.totalRevenue) {
+      // 使用已有的财务数据
       setInputs((prev) => ({
         ...prev,
         baseRevenue: financialData.totalRevenue / 1000000,
@@ -225,10 +234,61 @@ interface Step1SectionProps {
   financialData: any;
   quote: any;
   onInputChange: (name: 'baseRevenue' | 'baseFCF', value: string) => void;
-  onSync: () => void;
+  onSync: (revenue: number, fcf: number) => void;
 }
 
 function Step1Section({ inputs, financialData, quote, onInputChange, onSync }: Step1SectionProps) {
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetchedData, setFetchedData] = useState<{
+    revenue: number;
+    fcf: number;
+    revenueYear: string;
+    fcfYear: string;
+    fcfMargin: number;
+  } | null>(null);
+
+  // 从 API 获取财务数据
+  const fetchFinancials = async () => {
+    if (!quote?.symbol) return;
+    
+    setLoading(true);
+    setFetchError(null);
+    
+    try {
+      const response = await fetch(`/api/stock/financials/${quote.symbol}`);
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || '获取数据失败');
+      }
+      
+      const data = result.data;
+      
+      // 转换为百万单位
+      const revenueInMillion = data.latestRevenue.value / 1e6;
+      const fcfInMillion = data.latestFCF.value / 1e6;
+      
+      // 保存获取的数据
+      setFetchedData({
+        revenue: revenueInMillion,
+        fcf: fcfInMillion,
+        revenueYear: data.latestRevenue.year,
+        fcfYear: data.latestFCF.year,
+        fcfMargin: data.fcfMargin,
+      });
+      
+      // 自动填入输入框
+      onSync(revenueInMillion, fcfInMillion);
+      
+    } catch (err: any) {
+      console.error('获取财务数据失败:', err);
+      setFetchError(err.message || '获取数据失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
       <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-8 shadow-sm space-y-6">
@@ -244,28 +304,47 @@ function Step1Section({ inputs, financialData, quote, onInputChange, onSync }: S
             <div className="p-2 bg-indigo-500/10 rounded-lg">
               <Search className="w-4 h-4 text-indigo-400" />
             </div>
-            <div className="flex-1 space-y-1">
+            <div className="flex-1 space-y-2">
               <div className="flex justify-between items-start">
-                <h4 className="text-xs font-bold text-white">自动查询与手动输入</h4>
+                <h4 className="text-xs font-bold text-white">自动查询最新财务数据</h4>
                 <button
-                  onClick={onSync}
-                  className="px-3 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 border border-indigo-500/20"
+                  onClick={fetchFinancials}
+                  disabled={loading || !quote?.symbol}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 border",
+                    loading 
+                      ? "bg-zinc-700 text-zinc-400 border-zinc-600 cursor-not-allowed" 
+                      : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20"
+                  )}
                 >
-                  <Activity className="w-3 h-3" />
-                  从 Stock Analysis 同步最新数据
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      查询中...
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="w-3 h-3" />
+                      查询最新数据
+                    </>
+                  )}
                 </button>
               </div>
+              
+              {fetchError && (
+                <p className="text-[10px] text-rose-400">{fetchError}</p>
+              )}
+              
+              {fetchedData && (
+                <div className="text-[10px] text-emerald-400 space-y-0.5">
+                  <p>✓ 已获取 {fetchedData.revenueYear} 年度数据</p>
+                  <p>营收: ${fetchedData.revenue.toFixed(2)}M | FCF: ${fetchedData.fcf.toFixed(2)}M</p>
+                </div>
+              )}
+              
               <p className="text-[10px] text-zinc-500 leading-relaxed">
-                系统已尝试自动从{' '}
-                <a
-                  href={`https://stockanalysis.com/stocks/${quote?.symbol?.toLowerCase()}/financials/`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium"
-                >
-                  Stock Analysis <ExternalLink className="w-2.5 h-2.5" />
-                </a>{' '}
-                获取最新 TTM 数据。您可以直接使用自动获取的值，或在下方手动修改。
+                点击"查询最新数据"从 Yahoo Finance 获取 {quote?.symbol} 的最新年度财务报表数据。
+                数据将自动填入下方输入框。您也可以直接手动修改数值。
               </p>
             </div>
           </div>
@@ -273,7 +352,12 @@ function Step1Section({ inputs, financialData, quote, onInputChange, onSync }: S
 
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-xs text-zinc-500">基准年营收 (Revenue, 百万)</label>
+            <label className="text-xs text-zinc-500 flex justify-between">
+              <span>基准年营收 (Revenue, 百万)</span>
+              {fetchedData?.revenueYear && (
+                <span className="text-emerald-400 text-[10px]">{fetchedData.revenueYear}</span>
+              )}
+            </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
               <input
@@ -286,7 +370,12 @@ function Step1Section({ inputs, financialData, quote, onInputChange, onSync }: S
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-xs text-zinc-500">基准年自由现金流 (FCF, 百万)</label>
+            <label className="text-xs text-zinc-500 flex justify-between">
+              <span>基准年自由现金流 (FCF, 百万)</span>
+              {fetchedData?.fcfYear && (
+                <span className="text-emerald-400 text-[10px]">{fetchedData.fcfYear}</span>
+              )}
+            </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">$</span>
               <input
