@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import type { StockData, HistoryPoint } from '../types/stock';
 import type { FriendlyError, ErrorType } from '../types/error';
-import { createFriendlyError, parseError, getErrorTypeFromStatus } from '../types/error';
+import { createFriendlyError, getErrorTypeFromStatus } from '../types/error';
 import { isValidSymbol } from '../utils/errorHandler';
+import type { APIResponse } from '../utils/errorHandler';
 
 interface UseStockDataReturn {
   symbol: string;
@@ -107,30 +108,21 @@ export function useStockData(initialSymbol: string = 'AAPL'): UseStockDataReturn
       ]);
 
       // 4. 处理股票基本信息响应
-      if (!stockResponse.ok) {
-        const errorType = getErrorTypeFromStatus(stockResponse.status);
+      const stockResult: APIResponse<StockData> = await stockResponse.json();
+
+      if (!stockResponse.ok || !stockResult.success) {
+        const errorType = stockResult.success === false 
+          ? stockResult.error.type 
+          : getErrorTypeFromStatus(stockResponse.status);
         
-        // 尝试解析错误详情
-        let errorDetail = '';
-        try {
-          const errorData = await stockResponse.json();
-          errorDetail = errorData.error?.message || errorData.message || '';
-        } catch {
-          // 解析失败，使用默认错误
-        }
+        const errorMessage = stockResult.success === false
+          ? stockResult.error.message
+          : '获取数据失败';
 
-        // 针对特定错误类型提供额外信息
-        if (errorType === 'STOCK_NOT_FOUND' as ErrorType) {
-          throw createFriendlyError(
-            'STOCK_NOT_FOUND' as ErrorType,
-            `未找到股票 "${trimmedSymbol}"，请检查代码是否正确`
-          );
-        }
-
-        throw createFriendlyError(errorType, errorDetail || undefined);
+        throw createFriendlyError(errorType, errorMessage);
       }
 
-      const data: StockData = await stockResponse.json();
+      const data = stockResult.data;
 
       // 验证数据完整性
       if (!data.quote || !data.quote.symbol) {
@@ -141,27 +133,28 @@ export function useStockData(initialSymbol: string = 'AAPL'): UseStockDataReturn
       }
 
       // 5. 处理历史数据响应
-      if (!historyResponse.ok) {
+      const historyResult: APIResponse<{ quotes: any[] }> = await historyResponse.json();
+
+      if (!historyResponse.ok || !historyResult.success) {
         console.warn('历史数据获取失败，但仍显示基本信息');
-        // 历史数据失败不影响基本信息显示
         setStockData(data);
         setHistory([]);
         setSymbol(trimmedSymbol);
         return;
       }
-
-      const historyData = await historyResponse.json();
 
       // 6. 格式化并处理历史数据
-      if (!historyData.quotes || !Array.isArray(historyData.quotes)) {
-        console.warn('历史数据格式异常');
+      const quotes = historyResult.data?.quotes || [];
+      
+      if (!quotes.length) {
+        console.warn('历史数据为空');
         setStockData(data);
         setHistory([]);
         setSymbol(trimmedSymbol);
         return;
       }
 
-      const formattedHistory = historyData.quotes
+      const formattedHistory = quotes
         .map((q: any) => ({
           date: format(new Date(q.date), 'MM-dd'),
           open: q.open,
@@ -207,25 +200,20 @@ export function useStockData(initialSymbol: string = 'AAPL'): UseStockDataReturn
       let friendlyError: FriendlyError;
 
       if (err?.type && Object.values(ErrorType).includes(err.type)) {
-        // 已经是 FriendlyError
         friendlyError = err;
       } else if (err instanceof TypeError) {
-        // 网络错误
         if (err.message.includes('fetch') || err.message.includes('network')) {
           friendlyError = createFriendlyError('NETWORK_ERROR' as ErrorType);
         } else {
           friendlyError = createFriendlyError('UNKNOWN_ERROR' as ErrorType, err.message);
         }
       } else if (err instanceof Error) {
-        // 其他错误
-        friendlyError = parseError(err);
+        friendlyError = createFriendlyError('UNKNOWN_ERROR' as ErrorType, err.message);
       } else {
-        // 未知错误
         friendlyError = createFriendlyError('UNKNOWN_ERROR' as ErrorType, String(err));
       }
 
       setError(friendlyError);
-      // 清空旧数据，避免显示错误的信息
       setStockData(null);
       setHistory([]);
     } finally {
