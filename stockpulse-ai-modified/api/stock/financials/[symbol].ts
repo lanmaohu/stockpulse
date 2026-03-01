@@ -106,7 +106,7 @@ async function fetchFromStockAnalysis(symbol: string) {
       if (label.toLowerCase().includes('shares outstanding') || label.toLowerCase().includes('shares out')) {
         const valueCell = $(row).find('td:nth-child(2), td:eq(1)').text().trim();
         if (valueCell) {
-          sharesOutstanding = parseFinancialValue(valueCell);
+          sharesOutstanding = parseShareCount(valueCell);
         }
       }
     });
@@ -115,7 +115,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     if (sharesOutstanding === 0) {
       const sharesText = $('body').text().match(/Shares Outstanding[:\s]+([\d,.]+[BMK]?)/i);
       if (sharesText) {
-        sharesOutstanding = parseFinancialValue(sharesText[1]);
+        sharesOutstanding = parseShareCount(sharesText[1]);
       }
     }
     
@@ -170,6 +170,8 @@ async function fetchFromStockAnalysis(symbol: string) {
 }
 
 // 解析财务数值（处理 B/M/K 后缀）
+// Stock Analysis 数据单位：Financials in millions USD
+// 返回值单位：百万人民币
 function parseFinancialValue(value: string): number {
   if (!value) return 0;
   
@@ -186,23 +188,55 @@ function parseFinancialValue(value: string): number {
   let num = parseFloat(match[1]);
   const suffix = match[2].toUpperCase();
   
-  // 处理单位后缀
+  // Stock Analysis 数据已经是 millions USD 单位
+  // 所以原始数值（如 123,324）表示 123,324 百万美元
+  let millionsUSD = num;
+  
+  // 处理单位后缀（如果是 B/M/K 形式）
   switch (suffix) {
-    case 'B': // Billion
-      num *= 1000000000;
+    case 'B': // Billion = 1000 Million
+      millionsUSD = num * 1000;
       break;
-    case 'M': // Million
-      num *= 1000000;
+    case 'M': // Million = 1 Million
+      millionsUSD = num;
       break;
-    case 'K': // Thousand
-      num *= 1000;
+    case 'K': // Thousand = 0.001 Million
+      millionsUSD = num * 0.001;
       break;
   }
   
-  // 转换为亿元人民币（假设原始数据是美元）
-  num = num / 100000000 * 7.2; // 转为亿美元，再转人民币
+  // 转换为百万人民币：百万美元 * 汇率
+  // 123,324 百万美元 * 7.2 = 887,933 百万人民币
+  const millionsCNY = millionsUSD * 7.2;
   
-  return isNegative ? -num : num;
+  return isNegative ? -millionsCNY : millionsCNY;
+}
+
+// 解析股本数量（不进行汇率转换）
+// 返回值单位：百万股
+function parseShareCount(value: string): number {
+  if (!value) return 0;
+  
+  const cleanValue = value.replace(/,/g, '').replace(/\s/g, '');
+  
+  const match = cleanValue.match(/([\d.]+)([BMK]?)/i);
+  if (!match) return 0;
+  
+  let num = parseFloat(match[1]);
+  const suffix = match[2].toUpperCase();
+  
+  // 转换为百万股
+  switch (suffix) {
+    case 'B': // Billion shares = 1000 Million shares
+      return num * 1000;
+    case 'M': // Million shares
+      return num;
+    case 'K': // Thousand shares = 0.001 Million
+      return num * 0.001;
+    default:
+      // 没有后缀，假设已经是百万单位
+      return num;
+  }
 }
 
 // 预设数据作为回退
