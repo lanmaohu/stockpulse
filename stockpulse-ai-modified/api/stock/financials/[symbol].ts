@@ -163,12 +163,20 @@ async function fetchFromStockAnalysis(symbol: string) {
     if (overviewRes.ok) {
       const overviewHtml = await overviewRes.text();
       
-      // 提取股价 - 港股和美股格式不同
-      const priceMatch = isHK 
-        ? overviewHtml.match(/HKEX[^\d]{0,200}(\d{3,4}\.?\d{0,2})/) || overviewHtml.match(/>(\d{3,4}\.?\d{0,2})<\/div>/)
-        : overviewHtml.match(/NASDAQ[^\d]{0,200}(\d{3,4}\.\d{2})/) || overviewHtml.match(/>(\d{3,4}\.\d{2})<\/div>/);
+      // 提取股价 - 使用大号字体类名定位
+      // 港股和美股都使用 text-4xl 或 text-3xl 显示价格
+      const priceMatch = overviewHtml.match(/text-[34]xl[^>]*>([\d.]+)/);
       if (priceMatch) {
         currentPrice = parseFloat(priceMatch[1]);
+      } else {
+        // 备用方案：查找 H1 标签后的第一个价格格式数字
+        const h1Match = overviewHtml.match(/<h1[^>]*>[\s\S]*?<\/h1>[\s\S]{0,1000}/i);
+        if (h1Match) {
+          const priceInH1 = h1Match[0].match(/>(\d{3,4}\.\d{2})</);
+          if (priceInH1) {
+            currentPrice = parseFloat(priceInH1[1]);
+          }
+        }
       }
       
       // 提取公司名称
