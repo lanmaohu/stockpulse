@@ -59,6 +59,13 @@ function App() {
       </div>
 
       <main className="pl-16">
+        {/* 顶部风险提示 */}
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5">
+          <p className="text-[10px] text-amber-500/80 text-center">
+            ⚠️ 风险提示：本站不构成投资建议，股市有风险，入市需谨慎。
+          </p>
+        </div>
+
         {/* Header */}
         <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-md border-b border-zinc-800 px-8 py-4">
           <div className="flex items-center gap-4">
