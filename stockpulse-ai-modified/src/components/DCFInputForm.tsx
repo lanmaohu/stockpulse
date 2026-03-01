@@ -340,7 +340,12 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
           {/* 增长率假设 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-zinc-800 pb-2">增长率假设</h3>
+            <div className="border-b border-zinc-800 pb-2">
+              <h3 className="text-lg font-semibold text-white">增长率假设</h3>
+              <p className="text-[11px] text-zinc-500 mt-1">
+                请预估未来自由现金流（FCF）增长率：第1-5年为高速增长期，第6-10年为放缓增长期
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {inputField(
                 '前5年增长率',
