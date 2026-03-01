@@ -99,36 +99,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // 获取年度营收数据 - 尝试多个可能的数据源
-    const earnings = summary?.earnings || {};
-    const financialData = summary?.financialData || {};
+    const earnings = (summary as any)?.earnings || {};
+    const financialData = (summary as any)?.financialData || {};
     
     // 调试信息
     const debugInfo: any = {
-      hasEarnings: !!summary?.earnings,
-      hasFinancialsChart: !!earnings?.financialsChart,
-      yearlyLength: earnings?.financialsChart?.yearly?.length || 0,
-      annualLength: earnings?.financialsChart?.annual?.length || 0,
-      quarterlyLength: earnings?.financialsChart?.quarterly?.length || 0,
+      hasEarnings: !!(summary as any)?.earnings,
+      hasFinancialsChart: !!(earnings as any)?.financialsChart,
+      yearlyLength: (earnings as any)?.financialsChart?.yearly?.length || 0,
+      annualLength: (earnings as any)?.financialsChart?.annual?.length || 0,
+      quarterlyLength: (earnings as any)?.financialsChart?.quarterly?.length || 0,
     };
 
     // 首先尝试 financialsChart.yearly
     let yearlyData: any[] = [];
     
-    if (earnings?.financialsChart?.yearly && Array.isArray(earnings.financialsChart.yearly)) {
-      yearlyData = earnings.financialsChart.yearly;
+    if ((earnings as any)?.financialsChart?.yearly && Array.isArray((earnings as any).financialsChart.yearly)) {
+      yearlyData = (earnings as any).financialsChart.yearly;
     }
     
     debugInfo.source1_yearly = yearlyData.length;
 
     // 如果没有 yearly，尝试 annual
-    if (yearlyData.length === 0 && earnings?.financialsChart?.annual && Array.isArray(earnings.financialsChart.annual)) {
-      yearlyData = earnings.financialsChart.annual;
+    if (yearlyData.length === 0 && (earnings as any)?.financialsChart?.annual && Array.isArray((earnings as any).financialsChart.annual)) {
+      yearlyData = (earnings as any).financialsChart.annual;
       debugInfo.source2_annual = yearlyData.length;
     }
     
     // 如果还没有数据，尝试从 quarterly 数据聚合（取每年最后一个季度）
-    if (yearlyData.length === 0 && earnings?.financialsChart?.quarterly && Array.isArray(earnings.financialsChart.quarterly)) {
-      const quarterly = earnings.financialsChart.quarterly;
+    if (yearlyData.length === 0 && (earnings as any)?.financialsChart?.quarterly && Array.isArray((earnings as any).financialsChart.quarterly)) {
+      const quarterly = (earnings as any).financialsChart.quarterly;
       const yearMap = new Map();
       quarterly.forEach((q: any) => {
         const year = q.date?.substring(0, 4) || q.fiscalYear || (q.date ? String(q.date).substring(0, 4) : null);
@@ -182,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const latestGrowthRate = latestGrowth?.growthRate || 0;
 
     // 获取 TTM 增长率（如果有）
-    const ttmGrowth = financialData?.revenueGrowth || latestGrowthRate;
+    const ttmGrowth = (financialData as any)?.revenueGrowth || latestGrowthRate;
 
     // 计算平均增长率
     const avgGrowth = growthRates.reduce((sum, item) => sum + (item.growthRate || 0), 0) / growthRates.length;

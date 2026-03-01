@@ -97,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = await yf.chart(trimmedSymbol, queryOptions);
 
     // 检查是否有数据
-    if (!result || !result.quotes || result.quotes.length === 0) {
+    if (!result || !(result as any).quotes || (result as any).quotes.length === 0) {
       return res.status(404).json(
         createAPIError(ErrorType.NO_DATA_AVAILABLE, '该时间段暂无历史数据')
       );
