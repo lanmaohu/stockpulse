@@ -66,7 +66,7 @@ function App() {
               STOCKPULSE AI
             </h1>
             <div className="h-4 w-px bg-zinc-800" />
-            <span className="text-sm font-semibold text-white">DCF股票估值计算器</span>
+            <span className="text-sm font-semibold text-white">价值投资DCF估值模型</span>
           </div>
         </header>
 
@@ -97,6 +97,18 @@ function App() {
                     <div className="flex items-center gap-3 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
                       <div className="w-8 h-8 bg-emerald-500 text-black rounded-full flex items-center justify-center text-sm font-bold">3</div>
                       <span className="text-sm text-zinc-400">折现计算企业价值</span>
+                    </div>
+                  </div>
+                  
+                  {/* 腾讯示例 */}
+                  <div className="mt-6 p-4 bg-zinc-900/50 rounded-xl border border-zinc-800/50">
+                    <p className="text-xs font-medium text-emerald-500 mb-2">💡 示例：腾讯控股(0700.HK) DCF估值演示</p>
+                    <div className="text-xs text-zinc-500 space-y-1">
+                      <p><span className="text-zinc-400">步骤1 - 基准数据：</span>当前FCF约1500亿港元，现金3130亿，负债2350亿，股本93亿股</p>
+                      <p><span className="text-zinc-400">步骤2 - 预测未来：</span>假设前5年增长率12%，6-10年增长率8%，永续增长率3%</p>
+                      <p><span className="text-zinc-400">步骤3 - 计算终值：</span>第10年FCF约3800亿，终值 = 3800 × (1+3%) / (10%-3%) ≈ 5.6万亿港元</p>
+                      <p><span className="text-zinc-400">步骤4 - 折现计算：</span>预测期现值约8000亿 + 终值现值约2.1万亿 = 企业价值约2.9万亿</p>
+                      <p><span className="text-zinc-400">步骤5 - 得出结果：</span>股权价值 = 2.9万亿 + 0.78万亿(净现金) = 3.68万亿 ÷ 93亿股 ≈ <span className="text-emerald-400 font-medium">395港元/股</span></p>
                     </div>
                   </div>
                 </div>
