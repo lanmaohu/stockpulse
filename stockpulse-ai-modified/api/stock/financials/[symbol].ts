@@ -168,7 +168,7 @@ async function fetchFromStockAnalysis(symbol: string) {
       }
     }
     
-    // 2. 获取 Cash Flow 页面的 Free Cash Flow 和 Growth
+    // 2. 获取 Cash Flow 页面的 Free Cash Flow
     const cashFlowUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/cash-flow-statement/`;
     const cashFlowRes = await fetch(cashFlowUrl, {
       headers: {
@@ -177,15 +177,28 @@ async function fetchFromStockAnalysis(symbol: string) {
     });
     
     let fcfValue = '';
-    let fcfGrowthRates: number[] = [];
     
     if (cashFlowRes.ok) {
       const cashFlowHtml = await cashFlowRes.text();
       fcfValue = extractRowValue(cashFlowHtml, ['Free Cash Flow']);
-      fcfGrowthRates = extractGrowthRates(cashFlowHtml, 'Free Cash Flow Growth');
     }
     
-    // 3. 获取 Balance Sheet 页面的数据
+    // 3. 获取 Income Statement 页面的 Revenue Growth
+    const incomeStatementUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/income-statement/`;
+    const incomeStatementRes = await fetch(incomeStatementUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    let revenueGrowthRates: number[] = [];
+    
+    if (incomeStatementRes.ok) {
+      const incomeStatementHtml = await incomeStatementRes.text();
+      revenueGrowthRates = extractGrowthRates(incomeStatementHtml, 'Revenue Growth');
+    }
+    
+    // 4. 获取 Balance Sheet 页面的数据
     const balanceUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/balance-sheet/`;
     const balanceRes = await fetch(balanceUrl, {
       headers: {
@@ -215,7 +228,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     
     console.log(`[API] Extracted for ${symbol}:`, { 
       fcf: fcfValue, 
-      fcfGrowthRates,
+      revenueGrowthRates,
       cash: cashValue, 
       debt: debtValue, 
       shares: sharesValue 
@@ -231,7 +244,7 @@ async function fetchFromStockAnalysis(symbol: string) {
       market: marketType,
       currentPrice,
       currentFCF: parseValue(fcfValue),
-      fcfGrowthRates,
+      revenueGrowthRates, // 使用 Revenue Growth 替代 FCF Growth
       cashAndEquivalents: parseValue(cashValue),
       totalDebt: parseValue(debtValue),
       sharesOutstanding: parseShares(sharesValue),
@@ -263,7 +276,7 @@ function getPresetStockData(symbol: string) {
       market: 'US',
       currentPrice: 264,
       currentFCF: 123324,        // 百万美元
-      fcfGrowthRates: [25.46, -9.23, 9.26, -10.64, 19.89], // 最近5年 FCF 增长率
+      revenueGrowthRates: [7.8, -2.8, 8.1, 33.3, 5.5], // 最近5年 Revenue Growth 收入增长率
       cashAndEquivalents: 66907, // Cash & Short-Term Investments, 百万美元
       totalDebt: 90509,          // 百万美元
       sharesOutstanding: 14703,  // Total Common Shares Outstanding, 百万股

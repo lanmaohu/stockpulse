@@ -24,7 +24,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [lastFetchedTicker, setLastFetchedTicker] = useState('');
   const [selectedMarket, setSelectedMarket] = useState<'ALL' | 'US' | 'HK' | 'CN'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
-  const [fcfGrowthRates, setFcfGrowthRates] = useState<number[]>([]);
+  const [revenueGrowthRates, setRevenueGrowthRates] = useState<number[]>([]);
 
   // 组件挂载时默认加载 Apple 数据
   useEffect(() => {
@@ -61,12 +61,13 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         discountRate: stockData.wacc || 10, // 使用 API 返回的 WACC
       }));
       
-      // 设置 FCF 增长率数据，并自动计算前5年增长率（取最近一年）
-      if (stockData.fcfGrowthRates && stockData.fcfGrowthRates.length > 0) {
-        setFcfGrowthRates(stockData.fcfGrowthRates);
-        // 取最近一年的 FCF 增长率作为前5年增长率默认值
-        const latestGrowthRate = Math.round(stockData.fcfGrowthRates[0]);
-        const years6to10Rate = Math.round(latestGrowthRate / 2);
+      // 设置 Revenue Growth 收入增长率数据，并自动计算前5年增长率（取最近一年）
+      if (stockData.revenueGrowthRates && stockData.revenueGrowthRates.length > 0) {
+        setRevenueGrowthRates(stockData.revenueGrowthRates);
+        // 取最近一年的 Revenue Growth 作为前5年增长率默认值
+        const latestGrowthRate = Math.round(stockData.revenueGrowthRates[0]);
+        // 第6-10年增长率在前5年基础上减少50%
+        const years6to10Rate = Math.round(latestGrowthRate * 0.5);
         handleChange('growthRateYears1to5', latestGrowthRate);
         handleChange('growthRateYears6to10', years6to10Rate);
       }
@@ -122,7 +123,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
     setTicker('');
     setCompanyName('');
     setLastFetchedTicker('');
-    setFcfGrowthRates([]);
+    setRevenueGrowthRates([]);
     onReset();
   };
 
@@ -413,7 +414,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
             <div className="border-b border-zinc-800 pb-2">
               <h3 className="text-lg font-semibold text-white">增长率假设</h3>
               <p className="text-[11px] text-zinc-500 mt-1">
-                请预估未来自由现金流（FCF）增长率：第1-5年为高速增长期，第6-10年为放缓增长期
+                请预估未来自由现金流（FCF）增长率：第1-5年为高速增长期，第6-10年为放缓增长期。参考 Revenue Growth（收入增长率）比 FCF Growth 更加稳定合理
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -438,12 +439,13 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                   </span>
                 </div>
                 
-                {/* 显示最近5年 FCF 增长率 */}
-                {fcfGrowthRates.length > 0 && (
+                {/* 显示最近5年 Revenue Growth 收入增长率 */}
+                {revenueGrowthRates.length > 0 && (
                   <div className="bg-zinc-950/50 rounded-lg px-3 py-2 border border-zinc-800/50">
-                    <p className="text-[10px] text-zinc-500 mb-1">最近5年 FCF 增长率（Stock Analysis）</p>
+                    <p className="text-[10px] text-zinc-500 mb-1">最近5年收入增长率 Revenue Growth（Stock Analysis）</p>
+                    <p className="text-[9px] text-zinc-600 mb-1">*参考 Revenue Growth 比 FCF Growth 更加稳定合理</p>
                     <div className="flex items-center gap-2">
-                      {fcfGrowthRates.map((rate, index) => (
+                      {revenueGrowthRates.map((rate, index) => (
                         <span 
                           key={index} 
                           className={`text-[11px] font-medium ${rate >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}
@@ -459,8 +461,8 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                   value={[data.growthRateYears1to5]}
                   onValueChange={([value]) => {
                     handleChange('growthRateYears1to5', value);
-                    // 自动计算 6-10 年增长率为前5年的一半
-                    handleChange('growthRateYears6to10', Math.round(value / 2));
+                    // 第6-10年增长率在前5年基准值上减少50%（即前5年的50%）
+                    handleChange('growthRateYears6to10', Math.round(value * 0.5));
                   }}
                   min={0}
                   max={50}
