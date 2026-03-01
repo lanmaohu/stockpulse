@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { DCFInputData } from '@/types/dcf';
 import { DEFAULT_INPUT_DATA } from '@/types/dcf';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,12 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [selectedMarket, setSelectedMarket] = useState<'ALL' | 'US' | 'HK' | 'CN'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [fcfGrowthRates, setFcfGrowthRates] = useState<number[]>([]);
+
+  // 组件挂载时默认加载 Apple 数据
+  useEffect(() => {
+    setTicker('AAPL');
+    fetchStockDataFromAPI('AAPL');
+  }, []);
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
     setData(prev => ({ ...prev, [field]: value }));
