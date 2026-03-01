@@ -478,7 +478,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                 '第6-10年增长率',
                 'growthRateYears6to10',
                 0,
-                30,
+                100,
                 1,
                 '预测期第6-10年的增长率，自动设为前5年增长率的80%（减少20%），反映增长放缓'
               )}
