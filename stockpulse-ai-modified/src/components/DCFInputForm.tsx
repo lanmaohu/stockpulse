@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp, Loader2, ExternalLink } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Slider } from '@/components/ui/slider';
 import { ALL_STOCKS, findStockByCode, convertToDCFInput, STOCKS_BY_MARKET } from '@/lib/stockData';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -159,6 +160,49 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
           {unit}
         </span>
+      </div>
+    </div>
+  );
+
+  // 滑块输入组件
+  const sliderField = (
+    label: string,
+    field: keyof DCFInputData,
+    min: number,
+    max: number,
+    step: number,
+    tooltip: string
+  ) => (
+    <div className="space-y-3 p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800/50">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm font-medium text-zinc-300">{label}</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-zinc-600 cursor-help hover:text-zinc-400" />
+              </TooltipTrigger>
+              <TooltipContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
+                <p className="max-w-xs text-xs">{tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <span className="text-lg font-bold text-emerald-500">
+          {data[field]}<span className="text-sm text-zinc-500 ml-0.5">%</span>
+        </span>
+      </div>
+      <Slider
+        value={[data[field] as number]}
+        onValueChange={([value]) => handleChange(field, value)}
+        min={min}
+        max={max}
+        step={step}
+        className="w-full"
+      />
+      <div className="flex justify-between text-[10px] text-zinc-600">
+        <span>{min}%</span>
+        <span>{max}%</span>
       </div>
     </div>
   );
@@ -347,29 +391,37 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {inputField(
+              {sliderField(
                 '前5年增长率',
                 'growthRateYears1to5',
-                '%',
-                '预测期内前5年的自由现金流年化增长率，通常参考行业增长和公司历史表现'
+                0,
+                50,
+                1,
+                '预测期内前5年的自由现金流年化增长率，通常参考行业增长和公司历史表现（建议5-20%）'
               )}
-              {inputField(
+              {sliderField(
                 '第6-10年增长率',
                 'growthRateYears6to10',
-                '%',
-                '预测期第6-10年的增长率，通常低于前5年，反映增长放缓'
+                0,
+                30,
+                1,
+                '预测期第6-10年的增长率，通常低于前5年，反映增长放缓（建议3-10%）'
               )}
-              {inputField(
+              {sliderField(
                 '永续增长率',
                 'terminalGrowthRate',
-                '%',
-                '预测期结束后的长期永续增长率，通常接近GDP增长率（2-3%）'
+                0,
+                5,
+                0.5,
+                '预测期结束后的长期永续增长率，通常接近GDP增长率（建议2-3%）'
               )}
-              {inputField(
+              {sliderField(
                 '折现率 (WACC)',
                 'discountRate',
-                '%',
-                '加权平均资本成本，反映资金的时间价值和风险，通常8-12%'
+                5,
+                20,
+                0.5,
+                '加权平均资本成本，反映资金的时间价值和风险（建议8-12%）'
               )}
             </div>
           </div>
