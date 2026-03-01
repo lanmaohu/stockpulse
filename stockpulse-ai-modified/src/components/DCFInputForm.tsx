@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp, Loader2 } from 'lucide-react';
+import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp, Loader2, ExternalLink } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ALL_STOCKS, findStockByCode, convertToDCFInput, STOCKS_BY_MARKET } from '@/lib/stockData';
 import { toast } from 'sonner';
@@ -289,7 +289,20 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
           {/* 基础财务数据 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-zinc-800 pb-2">基础财务数据</h3>
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <h3 className="text-lg font-semibold text-white">基础财务数据</h3>
+              {lastFetchedTicker && (
+                <a
+                  href={`https://stockanalysis.com/stocks/${lastFetchedTicker.replace('.HK', '').replace('.SS', '').replace('.SZ', '').toLowerCase()}/financials/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1 transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  查看 {lastFetchedTicker} 财务数据
+                </a>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {inputField(
                 '当前年度自由现金流 (FCF)',
