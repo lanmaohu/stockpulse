@@ -291,6 +291,29 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
 
       {/* 敏感性分析 */}
       <SensitivityAnalysis result={result} />
+
+      {/* 重要提示 */}
+      <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6">
+        <h3 className="text-lg font-bold text-rose-500 mb-3">重要提示</h3>
+        <ul className="space-y-2 text-sm text-rose-500/80">
+          <li className="flex items-start gap-2">
+            <span className="text-rose-500 mt-0.5">•</span>
+            <span>DCF估值结果高度依赖于增长率、折现率等假设参数，不同假设可能导致估值结果差异巨大</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-rose-500 mt-0.5">•</span>
+            <span>永续增长率应显著低于折现率（通常2-3%），且不应长期高于GDP增长率</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-rose-500 mt-0.5">•</span>
+            <span>预测期增长率应逐步下降，反映公司从高速增长到成熟期的自然过渡</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-rose-500 mt-0.5">•</span>
+            <span>建议结合多种估值方法（PE、PB、EV/EBITDA等）进行综合判断</span>
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
