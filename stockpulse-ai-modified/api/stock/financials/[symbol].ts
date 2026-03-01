@@ -1,8 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import YahooFinance from 'yahoo-finance2';
-
-// @ts-ignore
-const yf = new YahooFinance();
+import * as cheerio from 'cheerio';
 
 // 错误类型定义
 enum ErrorType {
@@ -38,97 +35,254 @@ function getMarketType(symbol: string): 'US' | 'HK' | 'CN' {
   return 'US';
 }
 
-// A股代码转换 (akshare格式)
-function convertAStockSymbol(symbol: string): string {
-  // 移除 .SS 或 .SZ 后缀
-  return symbol.replace(/\.SS$|\.SZ$/g, '');
+// 转换股票代码为 Stock Analysis 格式
+function convertToSAFormat(symbol: string): string {
+  // 移除后缀
+  return symbol.replace(/\.HK$|\.SS$|\.SZ$/g, '');
 }
 
-// 从 akshare 获取 A股财务数据
-async function fetchAStockData(symbol: string) {
-  const code = convertAStockSymbol(symbol);
+// 从 Stock Analysis 抓取财务数据
+async function fetchFromStockAnalysis(symbol: string) {
+  const saSymbol = convertToSAFormat(symbol).toLowerCase();
+  const url = `https://stockanalysis.com/stocks/${saSymbol}/financials/`;
+  
+  console.log(`[API] Fetching from Stock Analysis: ${url}`);
   
   try {
-    // 使用东方财富 API 获取财务数据
-    const response = await fetch(`https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=${code}`);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+    });
     
     if (!response.ok) {
-      throw new Error('获取A股数据失败');
+      if (response.status === 404) {
+        throw new Error('STOCK_NOT_FOUND');
+      }
+      throw new Error(`HTTP ${response.status}`);
     }
     
-    // 由于 akshare 需要 Python，我们使用简化的模拟数据
-    // 实际部署时应该调用 akshare 服务或使用其他 A股数据源
-    // 这里使用预设的A股数据作为回退
-    return null;
-  } catch (error) {
-    console.error('A股数据获取失败:', error);
-    return null;
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    
+    // 提取公司名称
+    const companyName = $('h1').first().text().trim() || symbol;
+    
+    // 提取数据函数 - 尝试多种选择器
+    const extractValue = (labelText: string): number => {
+      // 方法1: 查找包含特定文本的单元格
+      let value = 0;
+      
+      $('table tr, [data-testid="financial-table"] tr, .financial-table tr').each((_, row) => {
+        const label = $(row).find('td:first-child, th:first-child').text().trim();
+        if (label.toLowerCase().includes(labelText.toLowerCase())) {
+          // 获取第二列（最新一年的数据）
+          const valueCell = $(row).find('td:nth-child(2), td:eq(1)').text().trim();
+          if (valueCell) {
+            const parsed = parseFinancialValue(valueCell);
+            if (parsed > 0) value = parsed;
+          }
+        }
+      });
+      
+      return value;
+    };
+    
+    // 提取自由现金流 (Free Cash Flow)
+    let freeCashFlow = extractValue('Free Cash Flow') || extractValue('FCF');
+    
+    // 提取现金 (Cash & Cash Equivalents)
+    let cash = extractValue('Cash & Cash Equivalents') || extractValue('Cash and Equivalents');
+    
+    // 提取总负债 (Total Debt)
+    let debt = extractValue('Total Debt');
+    
+    // 提取总股本 (Shares Outstanding)
+    let sharesOutstanding = 0;
+    $('table tr, [data-testid="financial-table"] tr').each((_, row) => {
+      const label = $(row).find('td:first-child, th:first-child').text().trim();
+      if (label.toLowerCase().includes('shares outstanding') || label.toLowerCase().includes('shares out')) {
+        const valueCell = $(row).find('td:nth-child(2), td:eq(1)').text().trim();
+        if (valueCell) {
+          sharesOutstanding = parseFinancialValue(valueCell);
+        }
+      }
+    });
+    
+    // 如果表格中没有找到，尝试从页面其他位置获取
+    if (sharesOutstanding === 0) {
+      const sharesText = $('body').text().match(/Shares Outstanding[:\s]+([\d,.]+[BMK]?)/i);
+      if (sharesText) {
+        sharesOutstanding = parseFinancialValue(sharesText[1]);
+      }
+    }
+    
+    // 获取当前股价 (从页面中提取)
+    let currentPrice = 0;
+    const priceMatch = html.match(/"price":\s*([\d.]+)/) || 
+                       html.match(/data-price="([\d.]+)") ||
+                       $('span[data-testid="price"]').text().match(/([\d.]+)/);
+    if (priceMatch) {
+      currentPrice = parseFloat(priceMatch[1]);
+    }
+    
+    // 检查是否获取到有效数据
+    if (freeCashFlow === 0 && cash === 0 && debt === 0) {
+      console.log('[API] No financial data found in page, trying alternative method...');
+      
+      // 尝试从脚本标签中提取 JSON 数据
+      const scriptTags = $('script').map((_, el) => $(el).html()).get();
+      for (const script of scriptTags) {
+        if (script && script.includes('financials')) {
+          try {
+            const jsonMatch = script.match(/window\.__INITIAL_STATE__\s*=\s*({.+?});/) ||
+                             script.match(/"financials":\s*({.+?})/);
+            if (jsonMatch) {
+              console.log('[API] Found JSON data in script tag');
+              // 解析 JSON 数据...
+            }
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    }
+    
+    return {
+      symbol,
+      name: companyName.replace('Financials', '').trim(),
+      market: getMarketType(symbol),
+      currentPrice,
+      currentFCF: freeCashFlow,
+      cashAndEquivalents: cash,
+      totalDebt: debt,
+      sharesOutstanding,
+      currency: 'USD',
+      source: 'stockanalysis',
+    };
+    
+  } catch (error: any) {
+    console.error(`[API] Stock Analysis fetch failed: ${error.message}`);
+    throw error;
   }
 }
 
-// 从 Yahoo Finance 获取美股/港股数据
-async function fetchYahooFinanceData(symbol: string) {
-  try {
-    const quote = await yf.quote(symbol);
-    const summary = await yf.quoteSummary(symbol, {
-      modules: [
-        'financialData',
-        'earnings',
-        'cashflowStatementHistory',
-        'balanceSheetHistory',
-        'defaultKeyStatistics',
-      ],
-    });
-
-    if (!quote || !quote.symbol) {
-      throw new Error('未找到股票');
-    }
-
-    const financialData = summary?.financialData || {};
-    const cashflowHistory = summary?.cashflowStatementHistory?.cashflowStatements || [];
-    const balanceSheet = summary?.balanceSheetHistory?.balanceSheetStatements || [];
-    const keyStats = summary?.defaultKeyStatistics || {};
-
-    // 获取自由现金流
-    let latestFCF = financialData?.freeCashflow || 0;
-    if (cashflowHistory.length > 0 && cashflowHistory[0]?.freeCashFlow) {
-      latestFCF = cashflowHistory[0].freeCashFlow;
-    }
-
-    // 获取现金和负债
-    let cashAndEquivalents = financialData?.totalCash || 0;
-    let totalDebt = financialData?.totalDebt || 0;
-    
-    if (balanceSheet.length > 0) {
-      const latestBalance = balanceSheet[0];
-      cashAndEquivalents = latestBalance.cash || latestBalance.cashAndCashEquivalents || cashAndEquivalents;
-      totalDebt = latestBalance.shortLongTermDebtTotal || latestBalance.totalDebt || totalDebt;
-    }
-
-    // 转换单位（美元/港币转亿人民币，约 7.2/0.92）
-    const currency = quote.currency || 'USD';
-    let exchangeRate = 1;
-    if (currency === 'USD') {
-      exchangeRate = 7.2;  // 美元兑人民币
-    } else if (currency === 'HKD') {
-      exchangeRate = 0.92; // 港币兑人民币
-    }
-
-    return {
-      symbol: quote.symbol,
-      name: quote.shortName || quote.longName || quote.symbol,
-      market: currency === 'HKD' ? 'HK' : 'US',
-      currentPrice: (quote.regularMarketPrice || 0) * exchangeRate, // 转为人民币
-      currentFCF: (latestFCF / 1e8) * exchangeRate, // 转为亿元人民币
-      cashAndEquivalents: (cashAndEquivalents / 1e8) * exchangeRate,
-      totalDebt: (totalDebt / 1e8) * exchangeRate,
-      sharesOutstanding: (keyStats?.sharesOutstanding || quote.sharesOutstanding || 0) / 1e8, // 转为亿股
-      currency: 'CNY',
-    };
-  } catch (error) {
-    console.error('Yahoo Finance 获取失败:', error);
-    return null;
+// 解析财务数值（处理 B/M/K 后缀）
+function parseFinancialValue(value: string): number {
+  if (!value) return 0;
+  
+  // 移除逗号和空格
+  const cleanValue = value.replace(/,/g, '').replace(/\s/g, '');
+  
+  // 检查负数
+  const isNegative = cleanValue.startsWith('(') || cleanValue.startsWith('-');
+  
+  // 提取数字部分
+  const match = cleanValue.match(/([\d.]+)([BMK]?)/i);
+  if (!match) return 0;
+  
+  let num = parseFloat(match[1]);
+  const suffix = match[2].toUpperCase();
+  
+  // 处理单位后缀
+  switch (suffix) {
+    case 'B': // Billion
+      num *= 1000000000;
+      break;
+    case 'M': // Million
+      num *= 1000000;
+      break;
+    case 'K': // Thousand
+      num *= 1000;
+      break;
   }
+  
+  // 转换为亿元人民币（假设原始数据是美元）
+  num = num / 100000000 * 7.2; // 转为亿美元，再转人民币
+  
+  return isNegative ? -num : num;
+}
+
+// 预设数据作为回退
+function getPresetStockData(symbol: string) {
+  const stocks: Record<string, any> = {
+    'AAPL': {
+      symbol: 'AAPL',
+      name: '苹果公司 (Apple)',
+      market: 'US',
+      currentPrice: 195 * 7.2,
+      currentFCF: 7760,
+      cashAndEquivalents: 540,
+      totalDebt: 820,
+      sharesOutstanding: 152,
+      currency: 'CNY',
+      source: 'preset',
+    },
+    'MSFT': {
+      symbol: 'MSFT',
+      name: '微软 (Microsoft)',
+      market: 'US',
+      currentPrice: 420 * 7.2,
+      currentFCF: 5040,
+      cashAndEquivalents: 580,
+      totalDebt: 420,
+      sharesOutstanding: 74,
+      currency: 'CNY',
+      source: 'preset',
+    },
+    '0700.HK': {
+      symbol: '0700.HK',
+      name: '腾讯控股',
+      market: 'HK',
+      currentPrice: 385 * 0.92,
+      currentFCF: 1380,
+      cashAndEquivalents: 2880,
+      totalDebt: 2160,
+      sharesOutstanding: 93,
+      currency: 'CNY',
+      source: 'preset',
+    },
+    'TSLA': {
+      symbol: 'TSLA',
+      name: '特斯拉 (Tesla)',
+      market: 'US',
+      currentPrice: 175 * 7.2,
+      currentFCF: 720,
+      cashAndEquivalents: 215,
+      totalDebt: 72,
+      sharesOutstanding: 32,
+      currency: 'CNY',
+      source: 'preset',
+    },
+    'NVDA': {
+      symbol: 'NVDA',
+      name: '英伟达 (NVIDIA)',
+      market: 'US',
+      currentPrice: 120 * 7.2,
+      currentFCF: 3780,
+      cashAndEquivalents: 180,
+      totalDebt: 72,
+      sharesOutstanding: 246,
+      currency: 'CNY',
+      source: 'preset',
+    },
+    'GOOGL': {
+      symbol: 'GOOGL',
+      name: '谷歌 (Alphabet)',
+      market: 'US',
+      currentPrice: 165 * 7.2,
+      currentFCF: 4750,
+      cashAndEquivalents: 780,
+      totalDebt: 250,
+      sharesOutstanding: 125,
+      currency: 'CNY',
+      source: 'preset',
+    },
+  };
+  
+  return stocks[symbol] || null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -150,45 +304,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const trimmedSymbol = symbol.trim().toUpperCase();
-  const marketType = getMarketType(trimmedSymbol);
 
   try {
     let result = null;
-
-    if (marketType === 'CN') {
-      // A股 - 尝试获取实时数据（暂时使用模拟数据）
-      result = await fetchAStockData(trimmedSymbol);
+    
+    // 首先尝试从 Stock Analysis 获取
+    try {
+      console.log(`[API] Trying Stock Analysis for ${trimmedSymbol}`);
+      result = await fetchFromStockAnalysis(trimmedSymbol);
       
-      // 如果获取失败，返回预设数据
-      if (!result) {
-        // 查找预设的A股数据
-        const presetData = getPresetAStockData(trimmedSymbol);
-        if (presetData) {
-          result = presetData;
-        } else {
-          return res.status(404).json(
-            createAPIError(ErrorType.NO_DATA_AVAILABLE, '未找到该A股数据')
-          );
-        }
+      // 检查数据有效性
+      if (result.currentFCF > 0 || result.cashAndEquivalents > 0) {
+        console.log(`[API] Successfully fetched from Stock Analysis`);
+        return res.status(200).json(createAPISuccess(result));
       }
-    } else {
-      // 美股/港股 - 使用 Yahoo Finance
-      result = await fetchYahooFinanceData(trimmedSymbol);
-      
-      if (!result) {
-        // 尝试预设数据
-        const presetData = getPresetStockData(trimmedSymbol);
-        if (presetData) {
-          result = presetData;
-        } else {
-          return res.status(404).json(
-            createAPIError(ErrorType.NO_DATA_AVAILABLE, '未找到该股票数据')
-          );
-        }
-      }
+    } catch (saError: any) {
+      console.log(`[API] Stock Analysis failed: ${saError.message}`);
     }
-
-    return res.status(200).json(createAPISuccess(result));
+    
+    // 如果 Stock Analysis 失败，使用预设数据
+    console.log(`[API] Falling back to preset data for ${trimmedSymbol}`);
+    result = getPresetStockData(trimmedSymbol);
+    
+    if (result) {
+      return res.status(200).json(createAPISuccess(result));
+    }
+    
+    return res.status(404).json(
+      createAPIError(ErrorType.NO_DATA_AVAILABLE, `未找到股票 ${trimmedSymbol} 的数据`)
+    );
 
   } catch (error: any) {
     console.error(`[API] 获取股票 ${trimmedSymbol} 失败:`, error);
@@ -196,218 +340,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createAPIError(ErrorType.UNKNOWN_ERROR, error.message || '获取数据失败')
     );
   }
-}
-
-// 预设A股数据（作为回退）
-function getPresetAStockData(symbol: string) {
-  const aStocks: Record<string, any> = {
-    '600519.SS': {
-      symbol: '600519.SS',
-      name: '贵州茅台',
-      market: 'CN',
-      currentPrice: 1480,
-      currentFCF: 640,
-      cashAndEquivalents: 580,
-      totalDebt: 0,
-      sharesOutstanding: 12.6,
-      currency: 'CNY',
-    },
-    '000858.SZ': {
-      symbol: '000858.SZ',
-      name: '五粮液',
-      market: 'CN',
-      currentPrice: 145,
-      currentFCF: 260,
-      cashAndEquivalents: 920,
-      totalDebt: 0,
-      sharesOutstanding: 38.8,
-      currency: 'CNY',
-    },
-    '300750.SZ': {
-      symbol: '300750.SZ',
-      name: '宁德时代',
-      market: 'CN',
-      currentPrice: 210,
-      currentFCF: 580,
-      cashAndEquivalents: 260,
-      totalDebt: 180,
-      sharesOutstanding: 44,
-      currency: 'CNY',
-    },
-    '601318.SS': {
-      symbol: '601318.SS',
-      name: '中国平安',
-      market: 'CN',
-      currentPrice: 45,
-      currentFCF: 1200,
-      cashAndEquivalents: 5800,
-      totalDebt: 9800,
-      sharesOutstanding: 182,
-      currency: 'CNY',
-    },
-    '600036.SS': {
-      symbol: '600036.SS',
-      name: '招商银行',
-      market: 'CN',
-      currentPrice: 35,
-      currentFCF: 1400,
-      cashAndEquivalents: 1200,
-      totalDebt: 10800,
-      sharesOutstanding: 252,
-      currency: 'CNY',
-    },
-    '002594.SZ': {
-      symbol: '002594.SZ',
-      name: '比亚迪',
-      market: 'CN',
-      currentPrice: 280,
-      currentFCF: 1200,
-      cashAndEquivalents: 720,
-      totalDebt: 1800,
-      sharesOutstanding: 29,
-      currency: 'CNY',
-    },
-  };
-  
-  return aStocks[symbol] || null;
-}
-
-// 预设美股/港股数据（作为回退）
-function getPresetStockData(symbol: string) {
-  const stocks: Record<string, any> = {
-    'AAPL': {
-      symbol: 'AAPL',
-      name: '苹果公司 (Apple)',
-      market: 'US',
-      currentPrice: 195 * 7.2,
-      currentFCF: 7760,
-      cashAndEquivalents: 540,
-      totalDebt: 820,
-      sharesOutstanding: 152,
-      currency: 'CNY',
-    },
-    'MSFT': {
-      symbol: 'MSFT',
-      name: '微软 (Microsoft)',
-      market: 'US',
-      currentPrice: 420 * 7.2,
-      currentFCF: 5040,
-      cashAndEquivalents: 580,
-      totalDebt: 420,
-      sharesOutstanding: 74,
-      currency: 'CNY',
-    },
-    '0700.HK': {
-      symbol: '0700.HK',
-      name: '腾讯控股',
-      market: 'HK',
-      currentPrice: 385 * 0.92,
-      currentFCF: 1380,
-      cashAndEquivalents: 2880,
-      totalDebt: 2160,
-      sharesOutstanding: 93,
-      currency: 'CNY',
-    },
-    '9988.HK': {
-      symbol: '9988.HK',
-      name: '阿里巴巴',
-      market: 'HK',
-      currentPrice: 82 * 0.92,
-      currentFCF: 1380,
-      cashAndEquivalents: 3240,
-      totalDebt: 2160,
-      sharesOutstanding: 190,
-      currency: 'CNY',
-    },
-    'TSLA': {
-      symbol: 'TSLA',
-      name: '特斯拉 (Tesla)',
-      market: 'US',
-      currentPrice: 175 * 7.2,
-      currentFCF: 720,
-      cashAndEquivalents: 215,
-      totalDebt: 72,
-      sharesOutstanding: 32,
-      currency: 'CNY',
-    },
-    'NVDA': {
-      symbol: 'NVDA',
-      name: '英伟达 (NVIDIA)',
-      market: 'US',
-      currentPrice: 120 * 7.2,
-      currentFCF: 3780,
-      cashAndEquivalents: 180,
-      totalDebt: 72,
-      sharesOutstanding: 246,
-      currency: 'CNY',
-    },
-    'GOOGL': {
-      symbol: 'GOOGL',
-      name: '谷歌 (Alphabet)',
-      market: 'US',
-      currentPrice: 165 * 7.2,
-      currentFCF: 4750,
-      cashAndEquivalents: 780,
-      totalDebt: 250,
-      sharesOutstanding: 125,
-      currency: 'CNY',
-    },
-    'AMZN': {
-      symbol: 'AMZN',
-      name: '亚马逊 (Amazon)',
-      market: 'US',
-      currentPrice: 185 * 7.2,
-      currentFCF: 2880,
-      cashAndEquivalents: 580,
-      totalDebt: 1080,
-      sharesOutstanding: 104,
-      currency: 'CNY',
-    },
-    'META': {
-      symbol: 'META',
-      name: 'Meta Platforms',
-      market: 'US',
-      currentPrice: 500 * 7.2,
-      currentFCF: 2880,
-      cashAndEquivalents: 432,
-      totalDebt: 144,
-      sharesOutstanding: 26,
-      currency: 'CNY',
-    },
-    '3690.HK': {
-      symbol: '3690.HK',
-      name: '美团',
-      market: 'HK',
-      currentPrice: 135 * 0.92,
-      currentFCF: 280,
-      cashAndEquivalents: 920,
-      totalDebt: 460,
-      sharesOutstanding: 62,
-      currency: 'CNY',
-    },
-    '1810.HK': {
-      symbol: '1810.HK',
-      name: '小米集团',
-      market: 'HK',
-      currentPrice: 18 * 0.92,
-      currentFCF: 460,
-      cashAndEquivalents: 1100,
-      totalDebt: 370,
-      sharesOutstanding: 250,
-      currency: 'CNY',
-    },
-    '2318.HK': {
-      symbol: '2318.HK',
-      name: '中国平安',
-      market: 'HK',
-      currentPrice: 38 * 0.92,
-      currentFCF: 920,
-      cashAndEquivalents: 4600,
-      totalDebt: 8280,
-      sharesOutstanding: 182,
-      currency: 'CNY',
-    },
-  };
-  
-  return stocks[symbol] || null;
 }
