@@ -39,7 +39,7 @@ function convertToSAFormat(symbol: string): string {
   return symbol.replace(/\.HK$|\.SS$|\.SZ$/g, '');
 }
 
-// 解析财务数值（百万美元）
+// 解析财务数值
 function parseValue(value: string): number {
   if (!value) return 0;
   const clean = value.replace(/,/g, '').replace(/\s/g, '');
@@ -59,7 +59,7 @@ function parseValue(value: string): number {
   return isNegative ? -num : num;
 }
 
-// 解析股本（百万股）
+// 解析股本
 function parseShares(value: string): number {
   if (!value) return 0;
   const clean = value.replace(/,/g, '').replace(/\s/g, '');
@@ -77,18 +77,50 @@ function parseShares(value: string): number {
   }
 }
 
-// 从 HTML 中提取表格数据
-function extractTableData(html: string): Record<string, string> {
+// 从 HTML 提取财务数据
+function extractFinancialData(html: string) {
+  // 移除 script 和 style 标签
+  const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+  
   const data: Record<string, string> = {};
   
-  // 匹配表格行
-  const rowRegex = /<tr[^>]*>.*?<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>/gi;
-  let match;
+  // 提取所有行
+  const rows = cleanHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
   
-  while ((match = rowRegex.exec(html)) !== null) {
-    const label = match[1].trim();
-    const value = match[2].trim();
-    data[label] = value;
+  for (const row of rows) {
+    const text = row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Free Cash Flow (不包含 Per Share 或 Margin)
+    if (text.includes('Free Cash Flow') && 
+        !text.includes('Per Share') && 
+        !text.includes('Margin') &&
+        !data.fcf) {
+      const match = text.match(/(\d{2,3},\d{3})/);
+      if (match) data.fcf = match[1];
+    }
+    
+    // Cash & Equivalents
+    if ((text.includes('Cash & Equivalents') || text.includes('Cash &amp; Equivalents')) && 
+        !data.cash) {
+      const match = text.match(/(\d{2,3},\d{3})/);
+      if (match) data.cash = match[1];
+    }
+    
+    // Total Debt
+    if (text.includes('Total Debt') && 
+        !text.includes('Total Debt to') &&
+        !data.debt) {
+      const match = text.match(/(\d{2,3},\d{3})/);
+      if (match) data.debt = match[1];
+    }
+    
+    // Shares Outstanding
+    if (text.toLowerCase().includes('shares outstanding') && 
+        !text.toLowerCase().includes('growth') &&
+        !data.shares) {
+      const match = text.match(/(\d{2,3},?\d*)\s*(M|B|K)?/i);
+      if (match) data.shares = match[1] + (match[2] || '');
+    }
   }
   
   return data;
@@ -101,7 +133,7 @@ async function fetchFromStockAnalysis(symbol: string) {
   console.log(`[API] Fetching data for ${symbol}`);
   
   try {
-    // 获取利润表数据
+    // 获取利润表
     const incomeUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/`;
     const incomeRes = await fetch(incomeUrl, {
       headers: {
@@ -115,7 +147,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     
     const incomeHtml = await incomeRes.text();
     
-    // 获取资产负债表数据
+    // 获取资产负债表
     const balanceUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/balance-sheet/`;
     const balanceRes = await fetch(balanceUrl, {
       headers: {
@@ -126,8 +158,8 @@ async function fetchFromStockAnalysis(symbol: string) {
     const balanceHtml = balanceRes.ok ? await balanceRes.text() : '';
     
     // 提取数据
-    const incomeData = extractTableData(incomeHtml);
-    const balanceData = extractTableData(balanceHtml);
+    const incomeData = extractFinancialData(incomeHtml);
+    const balanceData = extractFinancialData(balanceHtml);
     
     // 提取公司名称
     const nameMatch = incomeHtml.match(/<h1[^>]*>([^<]+)<\/h1>/i);
@@ -138,19 +170,13 @@ async function fetchFromStockAnalysis(symbol: string) {
                        incomeHtml.match(/data-price="([\d.]+)"/);
     const currentPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
     
-    // 提取 FCF
-    const fcf = incomeData['Free Cash Flow'] || '';
+    // 合并数据
+    const fcf = incomeData.fcf || '';
+    const cash = balanceData.cash || incomeData.cash || '';
+    const debt = balanceData.debt || incomeData.debt || '';
+    const shares = balanceData.shares || incomeData.shares || '';
     
-    // 提取现金（从资产负债表）
-    const cash = balanceData['Cash & Equivalents'] || balanceData['Cash and Equivalents'] || '';
-    
-    // 提取负债
-    const debt = balanceData['Total Debt'] || '';
-    
-    // 提取股本
-    const sharesMatch = incomeHtml.match(/Shares Outstanding[\s\S]*?(\d+\.?\d*\s*[BMK])/i) ||
-                        balanceHtml.match(/Shares Outstanding[\s\S]*?(\d+\.?\d*\s*[BMK])/i);
-    const shares = sharesMatch ? sharesMatch[1] : '';
+    console.log(`[API] Extracted for ${symbol}:`, { fcf, cash, debt, shares });
     
     return {
       symbol,
@@ -183,7 +209,7 @@ function getPresetStockData(symbol: string) {
       currentFCF: 123324,
       cashAndEquivalents: 45317,
       totalDebt: 90509,
-      sharesOutstanding: 14680,
+      sharesOutstanding: 14681,
       currency: 'USD',
       unit: 'millions',
       source: 'preset',
