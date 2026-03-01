@@ -62,7 +62,7 @@ function App() {
         {/* 顶部风险提示 */}
         <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5">
           <p className="text-[10px] text-amber-500/80 text-center">
-            ⚠️ 风险提示：本站不构成投资建议，股市有风险，入市需谨慎。
+            ⚠️ 免责声明：本站仅提供数据展示与技术交流，不构成任何投资建议。股市有风险，入市需谨慎。
           </p>
         </div>
 
@@ -181,7 +181,7 @@ function App() {
             STOCKPULSE AI | DCF股票估值计算器
           </p>
           <p className="text-zinc-800 text-[10px] mt-4 max-w-2xl mx-auto">
-            本工具仅供学习和参考，不构成投资建议。估值结果受多种假设影响，实际投资请结合多方面因素综合分析。
+            本站仅提供数据展示与技术交流，不构成任何投资建议。股市有风险，入市需谨慎。
           </p>
         </footer>
       </main>
