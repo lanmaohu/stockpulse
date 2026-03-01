@@ -124,21 +124,21 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
             <ValueCard
               title="预测期现金流现值"
               value={result.projections.reduce((sum, p) => sum + p.presentValue, 0)}
-              unit="亿元"
+              unit="百万元"
               description={`${inputData.projectionYears}年预测期FCF现值总和`}
               color="blue"
             />
             <ValueCard
               title="终值现值"
               value={result.terminalValuePV}
-              unit="亿元"
+              unit="百万元"
               description="永续期价值折现到当前"
               color="purple"
             />
             <ValueCard
               title="企业价值 (EV)"
               value={result.enterpriseValue}
-              unit="亿元"
+              unit="百万元"
               description="预测期现值 + 终值现值"
               color="emerald"
               highlight
@@ -146,7 +146,7 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
             <ValueCard
               title="股权价值"
               value={result.equityValue}
-              unit="亿元"
+              unit="百万元"
               description="EV + 现金 - 负债"
               color="indigo"
               highlight
@@ -271,7 +271,7 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
               <ValueCard
                 title="终值 (TV)"
                 value={result.terminalValue}
-                unit="亿元"
+                unit="百万元"
                 description="预测期结束时的永续价值"
                 color="amber"
                 highlight
@@ -279,7 +279,7 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
               <ValueCard
                 title="终值现值 (PV of TV)"
                 value={result.terminalValuePV}
-                unit="亿元"
+                unit="百万元"
                 description="终值折现到当前"
                 color="orange"
                 highlight
