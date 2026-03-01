@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as cheerio from 'cheerio';
 
 // 错误类型定义
 enum ErrorType {
@@ -37,219 +36,154 @@ function getMarketType(symbol: string): 'US' | 'HK' | 'CN' {
 
 // 转换股票代码为 Stock Analysis 格式
 function convertToSAFormat(symbol: string): string {
-  // 移除后缀
   return symbol.replace(/\.HK$|\.SS$|\.SZ$/g, '');
+}
+
+// 解析财务数值（百万美元）
+function parseValue(value: string): number {
+  if (!value) return 0;
+  const clean = value.replace(/,/g, '').replace(/\s/g, '');
+  const isNegative = clean.startsWith('(') || clean.startsWith('-');
+  const match = clean.match(/([\d.]+)([BMK]?)/i);
+  if (!match) return 0;
+  
+  let num = parseFloat(match[1]);
+  const suffix = match[2].toUpperCase();
+  
+  switch (suffix) {
+    case 'B': num *= 1000; break;
+    case 'M': break;
+    case 'K': num *= 0.001; break;
+  }
+  
+  return isNegative ? -num : num;
+}
+
+// 解析股本（百万股）
+function parseShares(value: string): number {
+  if (!value) return 0;
+  const clean = value.replace(/,/g, '').replace(/\s/g, '');
+  const match = clean.match(/([\d.]+)([BMK]?)/i);
+  if (!match) return 0;
+  
+  let num = parseFloat(match[1]);
+  const suffix = match[2].toUpperCase();
+  
+  switch (suffix) {
+    case 'B': return num * 1000;
+    case 'M': return num;
+    case 'K': return num * 0.001;
+    default: return num;
+  }
+}
+
+// 从 HTML 中提取表格数据
+function extractTableData(html: string): Record<string, string> {
+  const data: Record<string, string> = {};
+  
+  // 匹配表格行
+  const rowRegex = /<tr[^>]*>.*?<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>/gi;
+  let match;
+  
+  while ((match = rowRegex.exec(html)) !== null) {
+    const label = match[1].trim();
+    const value = match[2].trim();
+    data[label] = value;
+  }
+  
+  return data;
 }
 
 // 从 Stock Analysis 抓取财务数据
 async function fetchFromStockAnalysis(symbol: string) {
   const saSymbol = convertToSAFormat(symbol).toLowerCase();
-  const url = `https://stockanalysis.com/stocks/${saSymbol}/financials/`;
   
-  console.log(`[API] Fetching from Stock Analysis: ${url}`);
+  console.log(`[API] Fetching data for ${symbol}`);
   
   try {
-    const response = await fetch(url, {
+    // 获取利润表数据
+    const incomeUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/`;
+    const incomeRes = await fetch(incomeUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
     
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('STOCK_NOT_FOUND');
-      }
-      throw new Error(`HTTP ${response.status}`);
+    if (!incomeRes.ok) {
+      throw new Error(`HTTP ${incomeRes.status}`);
     }
     
-    const html = await response.text();
-    const $ = cheerio.load(html);
+    const incomeHtml = await incomeRes.text();
     
-    // 提取公司名称
-    const companyName = $('h1').first().text().trim() || symbol;
-    
-    // 提取数据函数 - 尝试多种选择器
-    const extractValue = (labelText: string): number => {
-      // 方法1: 查找包含特定文本的单元格
-      let value = 0;
-      
-      $('table tr, [data-testid="financial-table"] tr, .financial-table tr').each((_, row) => {
-        const label = $(row).find('td:first-child, th:first-child').text().trim();
-        if (label.toLowerCase().includes(labelText.toLowerCase())) {
-          // 获取第二列（最新一年的数据）
-          const valueCell = $(row).find('td:nth-child(2), td:eq(1)').text().trim();
-          if (valueCell) {
-            const parsed = parseFinancialValue(valueCell);
-            if (parsed > 0) value = parsed;
-          }
-        }
-      });
-      
-      return value;
-    };
-    
-    // 提取自由现金流 (Free Cash Flow)
-    let freeCashFlow = extractValue('Free Cash Flow') || extractValue('FCF');
-    
-    // 提取现金 (Cash & Cash Equivalents)
-    let cash = extractValue('Cash & Cash Equivalents') || extractValue('Cash and Equivalents');
-    
-    // 提取总负债 (Total Debt)
-    let debt = extractValue('Total Debt');
-    
-    // 提取总股本 (Shares Outstanding)
-    let sharesOutstanding = 0;
-    $('table tr, [data-testid="financial-table"] tr').each((_, row) => {
-      const label = $(row).find('td:first-child, th:first-child').text().trim();
-      if (label.toLowerCase().includes('shares outstanding') || label.toLowerCase().includes('shares out')) {
-        const valueCell = $(row).find('td:nth-child(2), td:eq(1)').text().trim();
-        if (valueCell) {
-          sharesOutstanding = parseShareCount(valueCell);
-        }
-      }
+    // 获取资产负债表数据
+    const balanceUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/balance-sheet/`;
+    const balanceRes = await fetch(balanceUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
     });
     
-    // 如果表格中没有找到，尝试从页面其他位置获取
-    if (sharesOutstanding === 0) {
-      const sharesText = $('body').text().match(/Shares Outstanding[:\s]+([\d,.]+[BMK]?)/i);
-      if (sharesText) {
-        sharesOutstanding = parseShareCount(sharesText[1]);
-      }
-    }
+    const balanceHtml = balanceRes.ok ? await balanceRes.text() : '';
     
-    // 获取当前股价 (从页面中提取)
-    let currentPrice = 0;
-    const priceMatch = html.match(/"price":\s*([\d.]+)/) || 
-                       html.match(/data-price="([\d.]+)"/) ||
-                       $('span[data-testid="price"]').text().match(/([\d.]+)/);
-    if (priceMatch) {
-      currentPrice = parseFloat(priceMatch[1]);
-    }
+    // 提取数据
+    const incomeData = extractTableData(incomeHtml);
+    const balanceData = extractTableData(balanceHtml);
     
-    // 检查是否获取到有效数据
-    if (freeCashFlow === 0 && cash === 0 && debt === 0) {
-      console.log('[API] No financial data found in page, trying alternative method...');
-      
-      // 尝试从脚本标签中提取 JSON 数据
-      const scriptTags = $('script').map((_, el) => $(el).html()).get();
-      for (const script of scriptTags) {
-        if (script && script.includes('financials')) {
-          try {
-            const jsonMatch = script.match(/window\.__INITIAL_STATE__\s*=\s*({.+?});/) ||
-                             script.match(/"financials":\s*({.+?})/);
-            if (jsonMatch) {
-              console.log('[API] Found JSON data in script tag');
-              // 解析 JSON 数据...
-            }
-          } catch (e) {
-            // 忽略解析错误
-          }
-        }
-      }
-    }
+    // 提取公司名称
+    const nameMatch = incomeHtml.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+    const companyName = nameMatch ? nameMatch[1].replace('Financials', '').trim() : symbol;
+    
+    // 提取股价
+    const priceMatch = incomeHtml.match(/"price":\s*([\d.]+)/) || 
+                       incomeHtml.match(/data-price="([\d.]+)"/);
+    const currentPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+    
+    // 提取 FCF
+    const fcf = incomeData['Free Cash Flow'] || '';
+    
+    // 提取现金（从资产负债表）
+    const cash = balanceData['Cash & Equivalents'] || balanceData['Cash and Equivalents'] || '';
+    
+    // 提取负债
+    const debt = balanceData['Total Debt'] || '';
+    
+    // 提取股本
+    const sharesMatch = incomeHtml.match(/Shares Outstanding[\s\S]*?(\d+\.?\d*\s*[BMK])/i) ||
+                        balanceHtml.match(/Shares Outstanding[\s\S]*?(\d+\.?\d*\s*[BMK])/i);
+    const shares = sharesMatch ? sharesMatch[1] : '';
     
     return {
       symbol,
-      name: companyName.replace('Financials', '').trim(),
+      name: companyName,
       market: getMarketType(symbol),
       currentPrice,
-      currentFCF: freeCashFlow,
-      cashAndEquivalents: cash,
-      totalDebt: debt,
-      sharesOutstanding,
-      currency: 'USD', // 单位：百万美元
+      currentFCF: parseValue(fcf),
+      cashAndEquivalents: parseValue(cash),
+      totalDebt: parseValue(debt),
+      sharesOutstanding: parseShares(shares),
+      currency: 'USD',
       unit: 'millions',
       source: 'stockanalysis',
     };
     
   } catch (error: any) {
-    console.error(`[API] Stock Analysis fetch failed: ${error.message}`);
+    console.error(`[API] Fetch failed: ${error.message}`);
     throw error;
   }
 }
 
-// 解析财务数值（处理 B/M/K 后缀）
-// Stock Analysis 数据单位：Financials in millions USD
-// 返回值单位：百万美元（保持原始单位，不做货币转换）
-function parseFinancialValue(value: string): number {
-  if (!value) return 0;
-  
-  // 移除逗号和空格
-  const cleanValue = value.replace(/,/g, '').replace(/\s/g, '');
-  
-  // 检查负数
-  const isNegative = cleanValue.startsWith('(') || cleanValue.startsWith('-');
-  
-  // 提取数字部分
-  const match = cleanValue.match(/([\d.]+)([BMK]?)/i);
-  if (!match) return 0;
-  
-  let num = parseFloat(match[1]);
-  const suffix = match[2].toUpperCase();
-  
-  // Stock Analysis 数据已经是 millions USD 单位
-  // 所以原始数值（如 123,324）表示 123,324 百万美元
-  let millionsUSD = num;
-  
-  // 处理单位后缀（如果是 B/M/K 形式）
-  switch (suffix) {
-    case 'B': // Billion = 1000 Million
-      millionsUSD = num * 1000;
-      break;
-    case 'M': // Million = 1 Million
-      millionsUSD = num;
-      break;
-    case 'K': // Thousand = 0.001 Million
-      millionsUSD = num * 0.001;
-      break;
-  }
-  
-  // 返回百万美元，不做货币转换
-  // 如：123,324 百万美元 -> 123324
-  return isNegative ? -millionsUSD : millionsUSD;
-}
-
-// 解析股本数量（不进行汇率转换）
-// 返回值单位：百万股
-function parseShareCount(value: string): number {
-  if (!value) return 0;
-  
-  const cleanValue = value.replace(/,/g, '').replace(/\s/g, '');
-  
-  const match = cleanValue.match(/([\d.]+)([BMK]?)/i);
-  if (!match) return 0;
-  
-  let num = parseFloat(match[1]);
-  const suffix = match[2].toUpperCase();
-  
-  // 转换为百万股
-  switch (suffix) {
-    case 'B': // Billion shares = 1000 Million shares
-      return num * 1000;
-    case 'M': // Million shares
-      return num;
-    case 'K': // Thousand shares = 0.001 Million
-      return num * 0.001;
-    default:
-      // 没有后缀，假设已经是百万单位
-      return num;
-  }
-}
-
-// 预设数据作为回退（单位：百万美元）
+// 预设数据
 function getPresetStockData(symbol: string) {
   const stocks: Record<string, any> = {
     'AAPL': {
       symbol: 'AAPL',
       name: '苹果公司 (Apple)',
       market: 'US',
-      currentPrice: 264, // 美元股价
-      currentFCF: 123324, // 百万美元
-      cashAndEquivalents: 45317, // 百万美元
-      totalDebt: 90509, // 百万美元
-      sharesOutstanding: 14680, // 百万股 (14.68B)
+      currentPrice: 264,
+      currentFCF: 123324,
+      cashAndEquivalents: 45317,
+      totalDebt: 90509,
+      sharesOutstanding: 14680,
       currency: 'USD',
       unit: 'millions',
       source: 'preset',
@@ -325,7 +259,6 @@ function getPresetStockData(symbol: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // 设置 CORS 头
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -345,28 +278,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const trimmedSymbol = symbol.trim().toUpperCase();
 
   try {
-    let result = null;
-    
-    // 首先尝试从 Stock Analysis 获取
+    // 尝试获取实时数据
     try {
-      console.log(`[API] Trying Stock Analysis for ${trimmedSymbol}`);
-      result = await fetchFromStockAnalysis(trimmedSymbol);
+      console.log(`[API] Fetching real-time data for ${trimmedSymbol}`);
+      const result = await fetchFromStockAnalysis(trimmedSymbol);
       
-      // 检查数据有效性
-      if (result.currentFCF > 0 || result.cashAndEquivalents > 0) {
-        console.log(`[API] Successfully fetched from Stock Analysis`);
+      if (result.currentFCF > 0) {
+        console.log(`[API] Success: FCF=${result.currentFCF}`);
         return res.status(200).json(createAPISuccess(result));
       }
-    } catch (saError: any) {
-      console.log(`[API] Stock Analysis failed: ${saError.message}`);
+    } catch (error: any) {
+      console.log(`[API] Real-time fetch failed: ${error.message}`);
     }
     
-    // 如果 Stock Analysis 失败，使用预设数据
-    console.log(`[API] Falling back to preset data for ${trimmedSymbol}`);
-    result = getPresetStockData(trimmedSymbol);
+    // 回退到预设数据
+    console.log(`[API] Using preset data for ${trimmedSymbol}`);
+    const preset = getPresetStockData(trimmedSymbol);
     
-    if (result) {
-      return res.status(200).json(createAPISuccess(result));
+    if (preset) {
+      return res.status(200).json(createAPISuccess(preset));
     }
     
     return res.status(404).json(
@@ -374,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
   } catch (error: any) {
-    console.error(`[API] 获取股票 ${trimmedSymbol} 失败:`, error);
+    console.error(`[API] Error:`, error);
     return res.status(500).json(
       createAPIError(ErrorType.UNKNOWN_ERROR, error.message || '获取数据失败')
     );
