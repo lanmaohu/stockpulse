@@ -1,3 +1,5 @@
+import type { DCFInputData } from '@/types/dcf';
+
 // 预设股票财务数据（原始单位：百万美元/百万港元/百万人民币）
 
 export interface StockPresetData {
@@ -264,16 +266,18 @@ export function findStockByCode(code: string): StockPresetData | undefined {
 }
 
 // 将预设数据转换为DCF输入格式
-export function convertToDCFInput(stock: StockPresetData) {
+export function convertToDCFInput(stock: StockPresetData): DCFInputData {
   return {
     currentFCF: stock.currentFCF,
-    growthRateFirst5Years: stock.market === 'US' ? 12 : 10,
-    growthRateNext5Years: stock.market === 'US' ? 8 : 6,
-    perpetualGrowthRate: 3,
-    discountRate: stock.market === 'CN' ? 8 : 10,
+    growthRateYears1to5: stock.market === 'US' ? 12 : 10,
+    growthRateYears6to10: stock.market === 'US' ? 8 : 6,
+    terminalGrowthRate: 3,
+    discountRate: stock.market === 'CN' ? 8 : stock.market === 'HK' ? 12 : 10,
     cashAndEquivalents: stock.cashAndEquivalents,
     totalDebt: stock.totalDebt,
     sharesOutstanding: stock.sharesOutstanding,
     currentPrice: stock.currentPrice,
+    projectionYears: 10,
+    currency: stock.currency,
   };
 }

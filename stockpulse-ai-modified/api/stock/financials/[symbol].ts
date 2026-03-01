@@ -1,4 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import yahooFinance from 'yahoo-finance2';
+
+// 缓存（避免重复请求）
+const dataCache: Record<string, { data: any; timestamp: number }> = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
 
 // 错误类型定义
 enum ErrorType {
@@ -32,6 +37,236 @@ function getMarketType(symbol: string): 'US' | 'HK' | 'CN' {
     return 'HK';
   }
   return 'US';
+}
+
+// 将 A 股代码转换为 East Money 格式
+function convertToEastMoneyCode(symbol: string): string {
+  // 上海股市 .SS 转为 1.xxxxx 格式
+  // 深圳股市 .SZ 转为 0.xxxxx 格式
+  const code = symbol.replace(/\.SS$|\.SZ$/g, '');
+  if (symbol.endsWith('.SS')) {
+    return `1.${code}`;
+  } else if (symbol.endsWith('.SZ')) {
+    return `0.${code}`;
+  }
+  return code;
+}
+
+// 使用 East Money API 获取 A 股数据
+async function fetchFromEastMoney(symbol: string) {
+  const marketType = getMarketType(symbol);
+  
+  if (marketType !== 'CN') {
+    throw new Error('East Money only used for CN stocks');
+  }
+  
+  // 检查缓存
+  if (dataCache[symbol] && (Date.now() - dataCache[symbol].timestamp) < CACHE_TTL) {
+    console.log(`[EastMoney] Using cached data for ${symbol}`);
+    return dataCache[symbol].data;
+  }
+  
+  const emCode = convertToEastMoneyCode(symbol);
+  const secid = symbol.endsWith('.SS') ? `1.${symbol.replace('.SS', '')}` : `0.${symbol.replace('.SZ', '')}`;
+  console.log(`[EastMoney] Fetching ${symbol} (code: ${emCode}, secid: ${secid})`);
+  
+  try {
+    // 获取基本报价信息
+    const quoteUrl = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f43,f44,f45,f46,f47,f48,f49,f50,f51,f52,f55,f57,f58,f60,f62,f84,f85,f162`;
+    
+    const quoteRes = await fetch(quoteUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://quote.eastmoney.com/',
+      },
+    });
+    
+    if (!quoteRes.ok) {
+      throw new Error(`Quote API failed: ${quoteRes.status}`);
+    }
+    
+    const quoteData = await quoteRes.json();
+    
+    if (!quoteData.data) {
+      throw new Error('No quote data returned');
+    }
+    
+    const data = quoteData.data;
+    const companyName = data.f58 || symbol;
+    const currentPrice = data.f43 ? data.f43 / 100 : 0; // 价格需要除以100
+    const totalShares = data.f84 || 0; // 总股本(股)
+    const sharesOutstanding = totalShares / 1000000; // 转为百万股
+    
+    // 获取财务数据（资产负债表）
+    let cashAndEquivalents = 0;
+    let totalDebt = 0;
+    
+    try {
+      const balanceUrl = `https://f10.eastmoney.com/FinanceAnalysis/FinanceAnalysisAjax?code=${emCode.replace('.', '')}`;
+      const balanceRes = await fetch(balanceUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://f10.eastmoney.com/',
+        },
+      });
+      
+      if (balanceRes.ok) {
+        const balanceData = await balanceRes.json();
+        if (balanceData?.zcfz?.length > 0) {
+          const latest = balanceData.zcfz[0];
+          // 货币资金 (单位：万元，转为百万)
+          cashAndEquivalents = (latest.MONETARYFUND || 0) / 100;
+          // 总负债 (单位：万元，转为百万)
+          totalDebt = (latest.TOTALLIABILITIES || 0) / 100;
+        }
+      }
+    } catch (e) {
+      console.log('[EastMoney] Balance sheet fetch failed:', (e as Error).message);
+    }
+    
+    // 获取现金流量表数据
+    let currentFCF = 0;
+    try {
+      const cashflowUrl = `https://f10.eastmoney.com/CashFlow/CashFlowAjax?code=${emCode.replace('.', '')}`;
+      const cashflowRes = await fetch(cashflowUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://f10.eastmoney.com/',
+        },
+      });
+      
+      if (cashflowRes.ok) {
+        const cashflowData = await cashflowRes.json();
+        if (cashflowData?.xjll?.length > 0) {
+          const latest = cashflowData.xjll[0];
+          // 经营活动现金流净额 (单位：万元，转为百万)
+          const operatingCF = (latest.NETCASHOPERATE || 0) / 100;
+          // 购建固定资产等支付的现金 (单位：万元，转为百万)
+          const capex = Math.abs(latest.CAPEX || 0) / 100;
+          currentFCF = operatingCF - capex;
+        }
+      }
+    } catch (e) {
+      console.log('[EastMoney] Cash flow fetch failed:', (e as Error).message);
+    }
+    
+    // 获取利润表计算收入增长率
+    let revenueGrowthRates: number[] = [];
+    try {
+      const incomeUrl = `https://f10.eastmoney.com/ProfitAndLoss/ProfitAndLossAjax?code=${emCode.replace('.', '')}`;
+      const incomeRes = await fetch(incomeUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://f10.eastmoney.com/',
+        },
+      });
+      
+      if (incomeRes.ok) {
+        const incomeData = await incomeRes.json();
+        if (incomeData?.lrfp?.length > 1) {
+          const revenues = incomeData.lrfp
+            .map((item: any) => item.TOTALOPERATEREVE || 0)
+            .filter((r: number) => r > 0);
+          
+          // 计算增长率
+          for (let i = 0; i < Math.min(4, revenues.length - 1); i++) {
+            if (revenues[i + 1] > 0) {
+              const growth = ((revenues[i] - revenues[i + 1]) / revenues[i + 1]) * 100;
+              revenueGrowthRates.push(Math.round(growth * 10) / 10);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[EastMoney] Income fetch failed:', (e as Error).message);
+    }
+    
+    // 如果没有获取到增长率，使用默认值
+    if (revenueGrowthRates.length === 0) {
+      revenueGrowthRates = [15, 12, 18, 10, 8];
+    }
+    
+    const result = {
+      symbol,
+      name: companyName,
+      market: 'CN' as const,
+      currentPrice,
+      currentFCF,
+      revenueGrowthRates,
+      cashAndEquivalents,
+      totalDebt,
+      sharesOutstanding,
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'eastmoney',
+    };
+    
+    // 缓存结果
+    dataCache[symbol] = { data: result, timestamp: Date.now() };
+    
+    console.log(`[EastMoney] Success for ${symbol}:`, {
+      name: companyName,
+      price: currentPrice,
+      fcf: currentFCF,
+      cash: cashAndEquivalents,
+      debt: totalDebt,
+      shares: sharesOutstanding,
+    });
+    
+    return result;
+    
+  } catch (error: any) {
+    console.error(`[EastMoney] Error for ${symbol}:`, error.message);
+    throw error;
+  }
+}
+
+// 使用 Yahoo Finance 获取 A 股数据（备用方案）
+async function fetchFromYahooFinance(symbol: string) {
+  const marketType = getMarketType(symbol);
+  
+  if (marketType !== 'CN') {
+    throw new Error('Yahoo Finance only used for CN stocks');
+  }
+  
+  const yahooSymbol = symbol;
+  console.log(`[Yahoo] Fetching ${symbol} (Yahoo: ${yahooSymbol})`);
+  
+  try {
+    const quote = await yahooFinance.quote(yahooSymbol);
+    
+    if (!quote) {
+      throw new Error('QUOTE_NOT_FOUND');
+    }
+    
+    const currentPrice = quote.regularMarketPrice || 0;
+    const companyName = quote.shortName || quote.longName || symbol;
+    const sharesOutstanding = (quote.sharesOutstanding || 0) / 1000000;
+    
+    const result = {
+      symbol,
+      name: companyName,
+      market: 'CN' as const,
+      currentPrice,
+      currentFCF: 0,
+      revenueGrowthRates: [15, 12, 18, 10, 8],
+      cashAndEquivalents: 0,
+      totalDebt: 0,
+      sharesOutstanding,
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'yahoo',
+    };
+    
+    console.log(`[Yahoo] Basic data for ${symbol}: price=${currentPrice}`);
+    return result;
+    
+  } catch (error: any) {
+    console.error(`[Yahoo] Error for ${symbol}:`, error.message);
+    throw error;
+  }
 }
 
 // 转换股票代码为 Stock Analysis 格式
@@ -368,6 +603,112 @@ function getPresetStockData(symbol: string) {
       unit: 'millions',
       source: 'preset',
     },
+    // A股预设数据 (当Yahoo Finance失败时使用)
+    '600519.SS': {
+      symbol: '600519.SS',
+      name: '贵州茅台',
+      market: 'CN',
+      currentPrice: 1520,
+      currentFCF: 64000,          // 约640亿人民币
+      revenueGrowthRates: [15.7, 16.5, 11.7, 13.3, 10.2],
+      cashAndEquivalents: 156000, // 约1560亿人民币
+      totalDebt: 0,
+      sharesOutstanding: 1256,    // 约12.56亿股
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
+    '000001.SZ': {
+      symbol: '000001.SZ',
+      name: '平安银行',
+      market: 'CN',
+      currentPrice: 10.5,
+      currentFCF: 30000,          // 约300亿人民币
+      revenueGrowthRates: [8.5, 6.2, 10.3, 12.1, 9.8],
+      cashAndEquivalents: 125000, // 约1250亿人民币
+      totalDebt: 3200000,         // 约32000亿人民币(银行业务特性)
+      sharesOutstanding: 19406,   // 约194亿股
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
+    '000858.SZ': {
+      symbol: '000858.SZ',
+      name: '五粮液',
+      market: 'CN',
+      currentPrice: 145,
+      currentFCF: 78000,          // 约780亿人民币
+      revenueGrowthRates: [12.6, 11.7, 15.5, 14.4, 10.8],
+      cashAndEquivalents: 82000,  // 约820亿人民币
+      totalDebt: 0,
+      sharesOutstanding: 3882,    // 约38.82亿股
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
+    '600036.SS': {
+      symbol: '600036.SS',
+      name: '招商银行',
+      market: 'CN',
+      currentPrice: 35.2,
+      currentFCF: 45000,
+      revenueGrowthRates: [7.8, 9.2, 14.0, 11.5, 8.3],
+      cashAndEquivalents: 82000,
+      totalDebt: 1200000,
+      sharesOutstanding: 25220,
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
+    '600900.SS': {
+      symbol: '600900.SS',
+      name: '长江电力',
+      market: 'CN',
+      currentPrice: 28.5,
+      currentFCF: 52000,
+      revenueGrowthRates: [10.2, 8.5, 12.1, 9.8, 7.5],
+      cashAndEquivalents: 240000,
+      totalDebt: 78000,
+      sharesOutstanding: 24468,
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
+    '601318.SS': {
+      symbol: '601318.SS',
+      name: '中国平安',
+      market: 'CN',
+      currentPrice: 48.5,
+      currentFCF: 5800,
+      revenueGrowthRates: [5.2, 3.8, 8.1, 6.5, 4.2],
+      cashAndEquivalents: 22000,
+      totalDebt: 2800,
+      sharesOutstanding: 18280,
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
+    '601888.SS': {
+      symbol: '601888.SS',
+      name: '中国中免',
+      market: 'CN',
+      currentPrice: 68.0,
+      currentFCF: 12500,
+      revenueGrowthRates: [15.2, -15.3, 28.5, 32.1, 18.6],
+      cashAndEquivalents: 78000,
+      totalDebt: 72000,
+      sharesOutstanding: 2069,
+      wacc: 8,
+      currency: 'CNY',
+      unit: 'millions',
+      source: 'preset',
+    },
   };
   
   return stocks[symbol] || null;
@@ -391,11 +732,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const trimmedSymbol = symbol.trim().toUpperCase();
+  const marketType = getMarketType(trimmedSymbol);
 
   try {
-    // 尝试获取实时数据
+    // A股使用 East Money API
+    if (marketType === 'CN') {
+      try {
+        console.log(`[API] A股 detected, using East Money for ${trimmedSymbol}`);
+        const result = await fetchFromEastMoney(trimmedSymbol);
+        return res.status(200).json(createAPISuccess(result));
+      } catch (error: any) {
+        console.log(`[API] East Money failed: ${error.message}`);
+        // East Money 失败时尝试 Yahoo Finance
+        try {
+          console.log(`[API] Trying Yahoo Finance as fallback for ${trimmedSymbol}`);
+          const result = await fetchFromYahooFinance(trimmedSymbol);
+          return res.status(200).json(createAPISuccess(result));
+        } catch (yahooError: any) {
+          console.log(`[API] Yahoo Finance also failed: ${yahooError.message}`);
+        }
+      }
+    }
+    
+    // US/HK 股票使用 Stock Analysis
     try {
-      console.log(`[API] Fetching real-time data for ${trimmedSymbol}`);
+      console.log(`[API] Fetching from Stock Analysis for ${trimmedSymbol}`);
       const result = await fetchFromStockAnalysis(trimmedSymbol);
       
       console.log(`[API] Success for ${trimmedSymbol}:`, {
@@ -407,7 +768,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       return res.status(200).json(createAPISuccess(result));
     } catch (error: any) {
-      console.log(`[API] Real-time fetch failed: ${error.message}`);
+      console.log(`[API] Stock Analysis fetch failed: ${error.message}`);
     }
     
     // 回退到预设数据

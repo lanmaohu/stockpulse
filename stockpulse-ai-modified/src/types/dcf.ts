@@ -16,6 +16,9 @@ export interface DCFInputData {
   
   // 计算设置
   projectionYears: number;      // 预测年数（5或10年）
+  
+  // 货币信息
+  currency?: string;            // 货币代码：USD/HKD/CNY
 }
 
 export interface YearlyProjection {

@@ -22,6 +22,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [ticker, setTicker] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [lastFetchedTicker, setLastFetchedTicker] = useState('');
+  const [lastFetchedMarket, setLastFetchedMarket] = useState<'US' | 'HK' | 'CN'>('US');
   const [selectedMarket, setSelectedMarket] = useState<'ALL' | 'US' | 'HK' | 'CN'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [revenueGrowthRates, setRevenueGrowthRates] = useState<number[]>([]);
@@ -36,6 +37,28 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
     setData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // 根据市场类型生成财务数据链接
+  const getFinancialDataUrl = (symbol: string, market: 'US' | 'HK' | 'CN'): string => {
+    const cleanSymbol = symbol.replace(/\.HK$|\.SS$|\.SZ$/g, '');
+    
+    switch (market) {
+      case 'HK':
+        // 港股使用 Stock Analysis 的 HK 格式
+        return `https://stockanalysis.com/quote/hkg/${cleanSymbol}/financials/`;
+      case 'CN':
+        // A股使用东方财富
+        if (symbol.endsWith('.SS')) {
+          return `https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=SH${cleanSymbol}`;
+        } else {
+          return `https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=SZ${cleanSymbol}`;
+        }
+      case 'US':
+      default:
+        // 美股使用 Stock Analysis
+        return `https://stockanalysis.com/stocks/${cleanSymbol.toLowerCase()}/financials/`;
+    }
   };
 
   // 从API获取实时财务数据
@@ -59,6 +82,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         sharesOutstanding: stockData.sharesOutstanding,
         currentPrice: stockData.currentPrice,
         discountRate: stockData.wacc || 10, // 使用 API 返回的 WACC
+        currency: stockData.currency || 'USD', // 保存货币信息
       }));
       
       // 设置 Revenue Growth 收入增长率数据，并自动计算前5年增长率（取最近一年）
@@ -74,6 +98,10 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
       
       setCompanyName(stockData.name);
       setLastFetchedTicker(stockData.symbol);
+      // 确保 market 值有效，默认为 US
+      const market = stockData.market === 'HK' ? 'HK' : stockData.market === 'CN' ? 'CN' : 'US';
+      setLastFetchedMarket(market);
+      console.log(`[Debug] Stock: ${stockData.symbol}, Market: ${market}, API market: ${stockData.market}`);
       
       toast.success(`已加载 ${stockData.name} 的实时财务数据`);
     } catch (error: any) {
@@ -87,6 +115,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         setData(prev => ({ ...prev, ...dcfData }));
         setCompanyName(stock.name);
         setLastFetchedTicker(stock.code);
+        setLastFetchedMarket(stock.market === 'CN' ? 'CN' : stock.market === 'HK' ? 'HK' : 'US');
         toast.info(`已加载 ${stock.name} 的预设数据`);
       }
     } finally {
@@ -364,13 +393,16 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               <h3 className="text-lg font-semibold text-white">基础财务数据</h3>
               {lastFetchedTicker && (
                 <a
-                  href={`https://stockanalysis.com/stocks/${lastFetchedTicker.replace('.HK', '').replace('.SS', '').replace('.SZ', '').toLowerCase()}/financials/`}
+                  href={getFinancialDataUrl(lastFetchedTicker, lastFetchedMarket)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1 transition-colors"
                 >
                   <ExternalLink className="h-3 w-3" />
                   查看 {lastFetchedTicker} 财务数据
+                  <span className="text-zinc-500 ml-1">
+                    ({lastFetchedMarket === 'US' ? 'Stock Analysis' : lastFetchedMarket === 'HK' ? 'Stock Analysis' : '东方财富'})
+                  </span>
                 </a>
               )}
             </div>
