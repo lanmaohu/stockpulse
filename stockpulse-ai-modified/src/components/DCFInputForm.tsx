@@ -429,7 +429,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                           <Info className="h-3.5 w-3.5 text-zinc-600 cursor-help hover:text-zinc-400" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
-                          <p className="max-w-xs text-xs">预测期内前5年的自由现金流年化增长率，通常参考行业增长和公司历史表现（建议5-20%）</p>
+                          <p className="max-w-xs text-xs">预测期内前5年的自由现金流年化增长率，通常参考行业增长和公司历史表现（建议5-30%，极端情况可达50-100%）</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -465,13 +465,13 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                     handleChange('growthRateYears6to10', Math.round(value * 0.7));
                   }}
                   min={0}
-                  max={50}
+                  max={100}
                   step={1}
                   className="w-full"
                 />
                 <div className="flex justify-between text-[10px] text-zinc-600">
                   <span>0%</span>
-                  <span>50%</span>
+                  <span>100%</span>
                 </div>
               </div>
               {sliderField(
