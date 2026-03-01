@@ -32,7 +32,7 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     description: '根据不同阶段设定自由现金流的增长率',
     formula: 'g₁ (前5年) > g₂ (6-10年) > g₃ (永续期)',
     calculation: `${data.growthRateYears1to5}% → ${data.growthRateYears6to10}% → ${data.terminalGrowthRate}%`,
-    result: 0,
+    result: '数据确认完成',
     details: [
       `前5年增长率 (g₁): ${data.growthRateYears1to5}% - 高速增长期`,
       `第6-10年增长率 (g₂): ${data.growthRateYears6to10}% - 过渡期增长`,
