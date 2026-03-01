@@ -4,12 +4,12 @@ import { DEFAULT_INPUT_DATA } from '@/types/dcf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ALL_STOCKS, findStockByCode, convertToDCFInput, STOCKS_BY_MARKET } from '@/lib/stockData';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface DCFInputFormProps {
   onCalculate: (data: DCFInputData) => void;
@@ -94,12 +94,12 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
     }
   };
 
-  const getMarketColor = (market: string) => {
+  const getMarketBadgeColor = (market: string) => {
     switch (market) {
-      case 'US': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'HK': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'CN': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      default: return 'bg-slate-100 text-slate-700';
+      case 'US': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'HK': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'CN': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      default: return 'bg-zinc-500/20 text-zinc-400';
     }
   };
 
@@ -112,16 +112,16 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   ) => (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Label htmlFor={field} className="text-sm font-medium text-slate-700">
+        <Label htmlFor={field} className="text-sm font-medium text-zinc-400">
           {label}
         </Label>
         {tooltip && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                <Info className="h-4 w-4 text-zinc-600 cursor-help hover:text-zinc-400" />
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
                 <p className="max-w-xs text-xs">{tooltip}</p>
               </TooltipContent>
             </Tooltip>
@@ -135,9 +135,9 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
           step={step}
           value={data[field]}
           onChange={(e) => handleChange(field, parseFloat(e.target.value) || 0)}
-          className="pr-12 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+          className="pr-12 bg-zinc-900 border-zinc-800 text-white focus:border-emerald-500/50 focus:ring-emerald-500/20"
         />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">
           {unit}
         </span>
       </div>
@@ -145,28 +145,32 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   );
 
   return (
-    <Card className="shadow-lg border-slate-200">
-      <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
-        <CardTitle className="text-xl font-bold flex items-center gap-2">
-          <Calculator className="h-5 w-5" />
-          DCF估值参数输入
-        </CardTitle>
-        <CardDescription className="text-blue-100">
-          选择股票自动加载财务数据，或手动输入参数
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="bg-zinc-950 border border-zinc-900 rounded-3xl shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 border-b border-zinc-800 px-8 py-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-emerald-500/10 rounded-lg">
+            <Calculator className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">DCF估值参数输入</h2>
+            <p className="text-sm text-zinc-500">选择股票自动加载财务数据，或手动输入参数</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-8">
+        <form onSubmit={handleSubmit} className="space-y-8">
           {/* 股票代码查询 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 border-b pb-2 flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-white border-b border-zinc-800 pb-2 flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-emerald-500" />
               选择股票
             </h3>
             
             {/* 股票代码输入 */}
             <div className="space-y-2">
-              <Label htmlFor="ticker" className="text-sm font-medium text-slate-700">
+              <Label htmlFor="ticker" className="text-sm font-medium text-zinc-400">
                 股票代码
               </Label>
               <div className="flex gap-3">
@@ -178,13 +182,13 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                     value={ticker}
                     onChange={(e) => setTicker(e.target.value.toUpperCase())}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleFetchStockData())}
-                    className="pr-4 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                    className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus:border-emerald-500/50"
                   />
                 </div>
                 <Button
                   type="button"
                   onClick={handleFetchStockData}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-black font-semibold"
                 >
                   <Search className="h-4 w-4 mr-2" />
                   查询
@@ -194,70 +198,50 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
             {/* 市场筛选 */}
             <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant={selectedMarket === 'ALL' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedMarket('ALL')}
-                className={selectedMarket === 'ALL' ? 'bg-slate-700' : ''}
-              >
-                <Globe className="h-3 w-3 mr-1" />
-                全部
-              </Button>
-              <Button
-                type="button"
-                variant={selectedMarket === 'US' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedMarket('US')}
-                className={selectedMarket === 'US' ? 'bg-blue-600' : ''}
-              >
-                <TrendingUp className="h-3 w-3 mr-1" />
-                美股
-              </Button>
-              <Button
-                type="button"
-                variant={selectedMarket === 'HK' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedMarket('HK')}
-                className={selectedMarket === 'HK' ? 'bg-purple-600' : ''}
-              >
-                <TrendingUp className="h-3 w-3 mr-1" />
-                港股
-              </Button>
-              <Button
-                type="button"
-                variant={selectedMarket === 'CN' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedMarket('CN')}
-                className={selectedMarket === 'CN' ? 'bg-emerald-600' : ''}
-              >
-                <TrendingUp className="h-3 w-3 mr-1" />
-                A股
-              </Button>
+              {(['ALL', 'US', 'HK', 'CN'] as const).map((market) => (
+                <Button
+                  key={market}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedMarket(market)}
+                  className={cn(
+                    "border-zinc-800",
+                    selectedMarket === market 
+                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' 
+                      : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  )}
+                >
+                  {market === 'ALL' && <Globe className="h-3 w-3 mr-1" />}
+                  {market !== 'ALL' && <TrendingUp className="h-3 w-3 mr-1" />}
+                  {market === 'ALL' ? '全部' : market === 'US' ? '美股' : market === 'HK' ? '港股' : 'A股'}
+                </Button>
+              ))}
             </div>
 
             {/* 股票列表 */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">
+              <Label className="text-sm font-medium text-zinc-400">
                 热门股票 ({getFilteredStocks().length}只)
               </Label>
-              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-3 bg-zinc-900/50 rounded-xl border border-zinc-800">
                 {getFilteredStocks().map((stock) => (
                   <button
                     key={stock.code}
                     type="button"
                     onClick={() => selectStock(stock.code)}
-                    className={`px-3 py-1.5 text-xs rounded-full border transition-all flex items-center gap-1.5 ${
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all flex items-center gap-1.5",
                       lastFetchedTicker === stock.code
-                        ? 'bg-blue-100 border-blue-300 text-blue-700 ring-2 ring-blue-200'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 ring-1 ring-emerald-500/20'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                    )}
                   >
-                    <Badge variant="outline" className={`text-[10px] px-1 py-0 ${getMarketColor(stock.market)}`}>
+                    <Badge variant="outline" className={`text-[10px] px-1 py-0 ${getMarketBadgeColor(stock.market)}`}>
                       {getMarketLabel(stock.market)}
                     </Badge>
                     <span className="font-medium">{stock.code}</span>
-                    <span className="text-slate-400">{stock.name}</span>
+                    <span className="text-zinc-600">{stock.name}</span>
                   </button>
                 ))}
               </div>
@@ -265,14 +249,14 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
             {/* 查询结果提示 */}
             {companyName && lastFetchedTicker && (
-              <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-emerald-100 text-emerald-700">
+                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
                     {lastFetchedTicker}
                   </Badge>
-                  <span className="font-medium text-emerald-800">{companyName}</span>
+                  <span className="font-medium text-emerald-400">{companyName}</span>
                 </div>
-                <p className="text-sm text-emerald-600 mt-1">
+                <p className="text-sm text-zinc-500 mt-1">
                   财务数据已自动填充，请检查并调整增长率假设
                 </p>
               </div>
@@ -281,7 +265,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
           {/* 基础财务数据 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 border-b pb-2">基础财务数据</h3>
+            <h3 className="text-lg font-semibold text-white border-b border-zinc-800 pb-2">基础财务数据</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {inputField(
                 '当前年度自由现金流 (FCF)',
@@ -319,7 +303,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
           {/* 增长率假设 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 border-b pb-2">增长率假设</h3>
+            <h3 className="text-lg font-semibold text-white border-b border-zinc-800 pb-2">增长率假设</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {inputField(
                 '前5年增长率',
@@ -350,25 +334,33 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
           {/* 预测期设置 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-slate-800 border-b pb-2">预测设置</h3>
+            <h3 className="text-lg font-semibold text-white border-b border-zinc-800 pb-2">预测设置</h3>
             <div className="space-y-2">
-              <Label htmlFor="projectionYears" className="text-sm font-medium text-slate-700">
-                预测期年数
-              </Label>
+              <Label className="text-sm font-medium text-zinc-400">预测期年数</Label>
               <div className="flex gap-4">
                 <Button
                   type="button"
-                  variant={data.projectionYears === 5 ? 'default' : 'outline'}
+                  variant="outline"
                   onClick={() => handleChange('projectionYears', 5)}
-                  className={data.projectionYears === 5 ? 'bg-blue-600' : ''}
+                  className={cn(
+                    "border-zinc-800",
+                    data.projectionYears === 5 
+                      ? 'bg-emerald-500 text-black hover:bg-emerald-600' 
+                      : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  )}
                 >
                   5年
                 </Button>
                 <Button
                   type="button"
-                  variant={data.projectionYears === 10 ? 'default' : 'outline'}
+                  variant="outline"
                   onClick={() => handleChange('projectionYears', 10)}
-                  className={data.projectionYears === 10 ? 'bg-blue-600' : ''}
+                  className={cn(
+                    "border-zinc-800",
+                    data.projectionYears === 10 
+                      ? 'bg-emerald-500 text-black hover:bg-emerald-600' 
+                      : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  )}
                 >
                   10年
                 </Button>
@@ -380,7 +372,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
           <div className="flex gap-4 pt-4">
             <Button
               type="submit"
-              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3"
+              className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-black font-bold py-3 text-base"
             >
               <Calculator className="h-5 w-5 mr-2" />
               开始计算DCF估值
@@ -389,14 +381,14 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               type="button"
               variant="outline"
               onClick={handleReset}
-              className="px-6 border-slate-300 text-slate-600 hover:bg-slate-100"
+              className="px-6 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-white"
             >
               <RotateCcw className="h-5 w-5 mr-2" />
               重置
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
