@@ -1,254 +1,250 @@
-import { useState, FormEvent } from 'react';
-import {
-  Search,
-  Activity,
-  BarChart3,
-  PieChart,
-  Users,
-  Loader2,
-} from 'lucide-react';
-import { cn } from './utils/cn';
-import { useStockData } from './hooks/useStockData';
-import { Dashboard } from './components/Dashboard';
-import { DCFValuation } from './components/DCFValuation';
-import { ErrorDisplay } from './components/ErrorDisplay';
+import { useState } from 'react';
+import { type DCFInputData, type DCFResult, DEFAULT_INPUT_DATA } from '@/types/dcf';
+import { calculateDCF } from '@/lib/dcfCalculator';
+import { DCFInputForm } from '@/components/DCFInputForm';
+import { DCFResults } from '@/components/DCFResults';
+import { CalculationSteps } from '@/components/CalculationSteps';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Toaster } from '@/components/ui/sonner';
+import { Calculator, BarChart3, ListOrdered, BookOpen } from 'lucide-react';
+import './App.css';
 
-/**
- * StockPulse AI - 股票分析应用主组件
- * 
- * 功能：
- * 1. 侧边栏导航（仪表盘 / DCF估值）
- * 2. 股票搜索
- * 3. 数据展示
- * 4. 友好的错误提示
- */
-export default function App() {
-  // 当前激活的标签页（默认显示 DCF 估值页面）
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'dcf'>('dcf');
-  
-  // 搜索输入框的值
-  const [searchInput, setSearchInput] = useState('AAPL');
+function App() {
+  const [result, setResult] = useState<DCFResult | null>(null);
+  const [inputData, setInputData] = useState<DCFInputData>(DEFAULT_INPUT_DATA);
 
-  // 使用自定义 Hook 获取股票数据
-  const { 
-    symbol, 
-    stockData, 
-    history, 
-    loading, 
-    error, 
-    fetchData,
-    clearError,
-    retry 
-  } = useStockData('AAPL');
+  const handleCalculate = (data: DCFInputData) => {
+    setInputData(data);
+    const dcfResult = calculateDCF(data);
+    setResult(dcfResult);
+    // 滚动到结果区域
+    setTimeout(() => {
+      document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
 
-  // 处理搜索提交
-  const handleSearch = (e: FormEvent) => {
-    e.preventDefault();
-    if (searchInput.trim()) {
-      // 搜索时清除之前的错误
-      clearError();
-      fetchData(searchInput.toUpperCase());
-    }
+  const handleReset = () => {
+    setResult(null);
+    setInputData(DEFAULT_INPUT_DATA);
   };
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 font-sans selection:bg-emerald-500/30">
-      {/* 左侧边栏导航 */}
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-
-      <main className="pl-16">
-        {/* 顶部导航栏 */}
-        <Header
-          symbol={stockData?.quote.symbol}
-          companyName={stockData?.quote.shortName}
-          searchValue={searchInput}
-          onSearchChange={(value) => {
-            setSearchInput(value);
-            // 输入时清除错误
-            if (error) clearError();
-          }}
-          onSearchSubmit={handleSearch}
-        />
-
-        {/* 主内容区域 */}
-        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
-          {loading && <LoadingState />}
-          
-          {/* 使用新的错误显示组件 */}
-          {error && (
-            <ErrorDisplay 
-              error={error} 
-              onRetry={retry}
-              onDismiss={clearError}
-            />
-          )}
-          
-          {!loading && !error && stockData && (
-            <>
-              {activeTab === 'dashboard' ? (
-                <Dashboard stockData={stockData} history={history} />
-              ) : (
-                <DCFValuation stockData={stockData} />
-              )}
-            </>
-          )}
-          
-          {/* 初始空白状态 */}
-          {!loading && !error && !stockData && <EmptyState />}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900 text-white py-8 shadow-xl">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
+              <Calculator className="h-10 w-10" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold">DCF股票估值计算器</h1>
+              <p className="text-blue-200 mt-1">现金流折现模型 - 详细计算每一步过程</p>
+            </div>
+          </div>
         </div>
+      </header>
 
-        {/* 页脚 */}
-        <Footer />
-      </main>
-    </div>
-  );
-}
-
-// ============ 子组件 ============
-
-interface SidebarProps {
-  activeTab: 'dashboard' | 'dcf';
-  onTabChange: (tab: 'dashboard' | 'dcf') => void;
-}
-
-function Sidebar({ activeTab, onTabChange }: SidebarProps) {
-  return (
-    <div className="fixed left-0 top-0 bottom-0 w-16 border-r border-zinc-800 flex flex-col items-center py-8 gap-8 bg-zinc-950 z-50">
-      {/* Logo - 点击返回 DCF 估值首页 */}
-      <div
-        className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 cursor-pointer"
-        onClick={() => onTabChange('dcf')}
-      >
-        <Activity className="text-black w-6 h-6" />
-      </div>
-
-      {/* 导航项 - DCF估值(首页) 在前，仪表盘 在后 */}
-      <div className="flex flex-col gap-6">
-        <NavButton
-          icon={PieChart}
-          isActive={activeTab === 'dcf'}
-          onClick={() => onTabChange('dcf')}
-          label="DCF估值"
-        />
-        <NavButton
-          icon={BarChart3}
-          isActive={activeTab === 'dashboard'}
-          onClick={() => onTabChange('dashboard')}
-          label="仪表盘"
-        />
-        <NavButton
-          icon={Users}
-          isActive={false}
-          onClick={() => {}}
-          label="用户"
-        />
-      </div>
-    </div>
-  );
-}
-
-interface NavButtonProps {
-  icon: React.ComponentType<{ className?: string }>;
-  isActive: boolean;
-  onClick: () => void;
-  label: string;
-}
-
-function NavButton({ icon: Icon, isActive, onClick, label }: NavButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-6 h-6 transition-colors',
-        isActive ? 'text-white' : 'text-zinc-600 hover:text-white'
-      )}
-      title={label}
-    >
-      <Icon className="w-full h-full" />
-    </button>
-  );
-}
-
-interface HeaderProps {
-  symbol?: string;
-  companyName?: string;
-  searchValue: string;
-  onSearchChange: (value: string) => void;
-  onSearchSubmit: (e: FormEvent) => void;
-}
-
-function Header({ symbol, companyName, searchValue, onSearchChange, onSearchSubmit }: HeaderProps) {
-  return (
-    <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-md border-b border-zinc-800 px-8 py-4 flex justify-between items-center">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-bold text-white tracking-tighter uppercase tracking-[0.2em] text-xs">
-          STOCKPULSE AI
-        </h1>
-        <div className="h-4 w-px bg-zinc-800" />
-        {symbol && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-mono text-zinc-500">{symbol}</span>
-            <span className="text-sm font-semibold text-white">{companyName}</span>
+      <main className="container mx-auto px-4 py-8">
+        {/* 介绍说明 */}
+        {!result && (
+          <div className="mb-8 bg-white rounded-xl shadow-md p-6 border border-slate-200">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <BookOpen className="h-6 w-6 text-blue-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800 mb-2">关于DCF估值模型</h2>
+                <p className="text-slate-600 leading-relaxed">
+                  DCF（现金流折现）估值是一种绝对估值方法，通过预测公司未来的自由现金流并将其折现到当前价值，
+                  来计算公司的内在价值。本工具将详细展示DCF估值的每一个计算步骤，包括：
+                </p>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+                    <span className="text-sm text-slate-700">预测未来自由现金流</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                    <span className="text-sm text-slate-700">计算终值（永续价值）</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="w-8 h-8 bg-emerald-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+                    <span className="text-sm text-slate-700">折现计算企业价值</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* 搜索框 */}
-      <form onSubmit={onSearchSubmit} className="relative group">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
-        <input
-          type="text"
-          value={searchValue}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="搜索股票代码 (如 TSLA)"
-          className="bg-zinc-900 border border-zinc-800 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 w-64 transition-all"
-        />
-        {/* 搜索提示 */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-600 hidden group-focus-within:block">
-          按回车搜索
+        {/* 输入表单 */}
+        <div className="mb-8">
+          <DCFInputForm onCalculate={handleCalculate} onReset={handleReset} />
         </div>
-      </form>
-    </header>
-  );
-}
 
-function LoadingState() {
-  return (
-    <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
-      <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
-      <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest">正在获取市场数据...</p>
-      <p className="text-zinc-600 text-xs">正在连接 Yahoo Finance...</p>
+        {/* 结果展示 */}
+        {result && (
+          <div id="results-section" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Tabs defaultValue="summary" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 mb-6 bg-white shadow-sm border border-slate-200 p-1">
+                <TabsTrigger value="summary" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  <BarChart3 className="h-4 w-4" />
+                  估值结果
+                </TabsTrigger>
+                <TabsTrigger value="steps" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  <ListOrdered className="h-4 w-4" />
+                  计算步骤
+                </TabsTrigger>
+                <TabsTrigger value="details" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                  <Calculator className="h-4 w-4" />
+                  详细数据
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="summary" className="mt-0">
+                <DCFResults result={result} inputData={inputData} />
+              </TabsContent>
+
+              <TabsContent value="steps" className="mt-0">
+                <CalculationSteps steps={result.calculationSteps} />
+              </TabsContent>
+
+              <TabsContent value="details" className="mt-0">
+                <DetailedData result={result} inputData={inputData} />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+      </main>
+
+      {/* Toast通知 */}
+      <Toaster position="top-center" richColors />
+
+      {/* Footer */}
+      <footer className="bg-slate-900 text-slate-400 py-6 mt-12">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-sm">
+            DCF股票估值计算器 | 本工具仅供学习和参考，不构成投资建议
+          </p>
+          <p className="text-xs mt-2 text-slate-500">
+            估值结果受多种假设影响，实际投资请结合多方面因素综合分析
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
 
-function EmptyState() {
+// 详细数据组件
+function DetailedData({ inputData }: { result: DCFResult; inputData: DCFInputData }) {
   return (
-    <div className="h-[60vh] flex flex-col items-center justify-center text-center space-y-4">
-      <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mb-4">
-        <BarChart3 className="w-10 h-10 text-zinc-700" />
-      </div>
-      <h2 className="text-2xl font-bold text-white">欢迎使用 StockPulse AI</h2>
-      <p className="text-zinc-500 max-w-md">输入股票代码开始深度分析基本面、技术面及投资见解。</p>
-      <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl text-xs text-zinc-500">
-        <p className="font-medium mb-2">支持的格式：</p>
-        <div className="flex gap-4">
-          <span>美股: AAPL</span>
-          <span>港股: 0700.HK</span>
-          <span>A股: 000001.SZ</span>
+    <div className="space-y-6">
+      {/* 关键参数汇总 */}
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">关键参数汇总</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">当前FCF</div>
+            <div className="font-mono font-medium">{inputData.currentFCF.toFixed(2)} 亿</div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">前5年增长率</div>
+            <div className="font-mono font-medium">{inputData.growthRateYears1to5}%</div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">6-10年增长率</div>
+            <div className="font-mono font-medium">{inputData.growthRateYears6to10}%</div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">永续增长率</div>
+            <div className="font-mono font-medium">{inputData.terminalGrowthRate}%</div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">折现率 (WACC)</div>
+            <div className="font-mono font-medium">{inputData.discountRate}%</div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">预测期年数</div>
+            <div className="font-mono font-medium">{inputData.projectionYears} 年</div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">净债务</div>
+            <div className={`font-mono font-medium ${inputData.totalDebt > inputData.cashAndEquivalents ? 'text-red-600' : 'text-emerald-600'}`}>
+              {(inputData.totalDebt - inputData.cashAndEquivalents).toFixed(2)} 亿
+            </div>
+          </div>
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="text-xs text-slate-500">总股本</div>
+            <div className="font-mono font-medium">{inputData.sharesOutstanding.toFixed(2)} 亿股</div>
+          </div>
         </div>
+      </div>
+
+      {/* 计算过程公式展示 */}
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">DCF估值核心公式</h3>
+        <div className="space-y-4">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <div className="text-sm font-medium text-blue-800 mb-2">1. 企业价值公式</div>
+            <div className="font-mono text-lg text-blue-900">
+              EV = Σ [FCFₜ / (1 + r)ᵗ] + TV / (1 + r)ⁿ
+            </div>
+            <div className="text-sm text-blue-700 mt-2">
+              其中：FCFₜ = 第t年自由现金流，r = 折现率，TV = 终值，n = 预测期年数
+            </div>
+          </div>
+          
+          <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+            <div className="text-sm font-medium text-purple-800 mb-2">2. 终值公式 (Gordon增长模型)</div>
+            <div className="font-mono text-lg text-purple-900">
+              TV = FCFₙ × (1 + g) / (r - g)
+            </div>
+            <div className="text-sm text-purple-700 mt-2">
+              其中：FCFₙ = 最后一年自由现金流，g = 永续增长率
+            </div>
+          </div>
+          
+          <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+            <div className="text-sm font-medium text-emerald-800 mb-2">3. 股权价值公式</div>
+            <div className="font-mono text-lg text-emerald-900">
+              股权价值 = EV + 现金 - 负债
+            </div>
+          </div>
+          
+          <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+            <div className="text-sm font-medium text-amber-800 mb-2">4. 每股价值公式</div>
+            <div className="font-mono text-lg text-amber-900">
+              每股价值 = 股权价值 / 总股本
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 风险提示 */}
+      <div className="bg-amber-50 rounded-xl border border-amber-200 p-6">
+        <h3 className="text-lg font-semibold text-amber-800 mb-3">重要提示</h3>
+        <ul className="space-y-2 text-sm text-amber-700">
+          <li className="flex items-start gap-2">
+            <span className="text-amber-500 mt-0.5">•</span>
+            <span>DCF估值结果高度依赖于增长率、折现率等假设参数，不同假设可能导致估值结果差异巨大</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-amber-500 mt-0.5">•</span>
+            <span>永续增长率应显著低于折现率（通常2-3%），且不应长期高于GDP增长率</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-amber-500 mt-0.5">•</span>
+            <span>预测期增长率应逐步下降，反映公司从高速增长到成熟期的自然过渡</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-amber-500 mt-0.5">•</span>
+            <span>建议结合多种估值方法（PE、PB、EV/EBITDA等）进行综合判断</span>
+          </li>
+        </ul>
       </div>
     </div>
   );
 }
 
-function Footer() {
-  return (
-    <footer className="border-t border-zinc-900 px-8 py-12 text-center">
-      <p className="text-zinc-600 text-xs font-mono uppercase tracking-[0.3em]">由 Yahoo Finance 提供数据支持</p>
-      <p className="text-zinc-800 text-[10px] mt-4 max-w-2xl mx-auto">
-        免责声明：StockPulse AI 提供的信息仅供参考，不构成任何投资建议。在做出投资决策前，请务必进行独立研究。
-      </p>
-    </footer>
-  );
-}
+export default App;
