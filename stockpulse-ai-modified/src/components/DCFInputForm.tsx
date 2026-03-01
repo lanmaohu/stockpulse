@@ -24,6 +24,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [lastFetchedTicker, setLastFetchedTicker] = useState('');
   const [selectedMarket, setSelectedMarket] = useState<'ALL' | 'US' | 'HK' | 'CN'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
+  const [fcfGrowthRates, setFcfGrowthRates] = useState<number[]>([]);
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
     setData(prev => ({ ...prev, [field]: value }));
@@ -50,6 +51,11 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         sharesOutstanding: stockData.sharesOutstanding,
         currentPrice: stockData.currentPrice,
       }));
+      
+      // 设置 FCF 增长率数据
+      if (stockData.fcfGrowthRates && stockData.fcfGrowthRates.length > 0) {
+        setFcfGrowthRates(stockData.fcfGrowthRates);
+      }
       
       setCompanyName(stockData.name);
       setLastFetchedTicker(stockData.symbol);
@@ -97,6 +103,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
     setTicker('');
     setCompanyName('');
     setLastFetchedTicker('');
+    setFcfGrowthRates([]);
     onReset();
   };
 
@@ -391,14 +398,57 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sliderField(
-                '前5年增长率',
-                'growthRateYears1to5',
-                0,
-                50,
-                1,
-                '预测期内前5年的自由现金流年化增长率，通常参考行业增长和公司历史表现（建议5-20%）'
-              )}
+              {/* 前5年增长率 - 带历史数据显示 */}
+              <div className="space-y-3 p-4 bg-zinc-900/50 rounded-2xl border border-zinc-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium text-zinc-300">前5年增长率</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-zinc-600 cursor-help hover:text-zinc-400" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
+                          <p className="max-w-xs text-xs">预测期内前5年的自由现金流年化增长率，通常参考行业增长和公司历史表现（建议5-20%）</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <span className="text-lg font-bold text-emerald-500">
+                    {data.growthRateYears1to5}<span className="text-sm text-zinc-500 ml-0.5">%</span>
+                  </span>
+                </div>
+                
+                {/* 显示最近5年 FCF 增长率 */}
+                {fcfGrowthRates.length > 0 && (
+                  <div className="bg-zinc-950/50 rounded-lg px-3 py-2 border border-zinc-800/50">
+                    <p className="text-[10px] text-zinc-500 mb-1">最近5年 FCF 增长率（Stock Analysis）</p>
+                    <div className="flex items-center gap-2">
+                      {fcfGrowthRates.map((rate, index) => (
+                        <span 
+                          key={index} 
+                          className={`text-[11px] font-medium ${rate >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}
+                        >
+                          {rate >= 0 ? '+' : ''}{rate}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <Slider
+                  value={[data.growthRateYears1to5]}
+                  onValueChange={([value]) => handleChange('growthRateYears1to5', value)}
+                  min={0}
+                  max={50}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-[10px] text-zinc-600">
+                  <span>0%</span>
+                  <span>50%</span>
+                </div>
+              </div>
               {sliderField(
                 '第6-10年增长率',
                 'growthRateYears6to10',

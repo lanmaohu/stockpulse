@@ -93,8 +93,11 @@ function extractRowValue(html: string, labelPatterns: string[]): string {
     for (const pattern of labelPatterns) {
       if (text.toLowerCase().includes(pattern.toLowerCase())) {
         // 排除包含特定关键词的行
-        if (text.includes('Growth') || text.includes('Per Share') || 
-            text.includes('Margin') || text.includes('Ratio')) {
+        if (text.includes('Per Share') || text.includes('Margin') || text.includes('Ratio')) {
+          continue;
+        }
+        // 对于 Free Cash Flow，排除 Growth 行
+        if (pattern === 'Free Cash Flow' && text.includes('Growth')) {
           continue;
         }
         
@@ -106,6 +109,28 @@ function extractRowValue(html: string, labelPatterns: string[]): string {
   }
   
   return '';
+}
+
+// 从 HTML 提取增长率数据（返回最近5年）
+function extractGrowthRates(html: string, label: string): number[] {
+  const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+  const rows = cleanHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+  
+  for (const row of rows) {
+    const text = row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    if (text.includes(label)) {
+      // 提取所有百分比数值
+      const matches = text.match(/-?\d+\.?\d*/g);
+      if (matches && matches.length > 0) {
+        // 转换为数字并返回前5个（最近5年）
+        const rates = matches.slice(0, 5).map(m => parseFloat(m));
+        return rates.filter(r => !isNaN(r));
+      }
+    }
+  }
+  
+  return [];
 }
 
 // 从 Stock Analysis 抓取财务数据
@@ -143,7 +168,7 @@ async function fetchFromStockAnalysis(symbol: string) {
       }
     }
     
-    // 2. 获取 Cash Flow 页面的 Free Cash Flow
+    // 2. 获取 Cash Flow 页面的 Free Cash Flow 和 Growth
     const cashFlowUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/cash-flow-statement/`;
     const cashFlowRes = await fetch(cashFlowUrl, {
       headers: {
@@ -152,9 +177,12 @@ async function fetchFromStockAnalysis(symbol: string) {
     });
     
     let fcfValue = '';
+    let fcfGrowthRates: number[] = [];
+    
     if (cashFlowRes.ok) {
       const cashFlowHtml = await cashFlowRes.text();
       fcfValue = extractRowValue(cashFlowHtml, ['Free Cash Flow']);
+      fcfGrowthRates = extractGrowthRates(cashFlowHtml, 'Free Cash Flow Growth');
     }
     
     // 3. 获取 Balance Sheet 页面的数据
@@ -187,6 +215,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     
     console.log(`[API] Extracted for ${symbol}:`, { 
       fcf: fcfValue, 
+      fcfGrowthRates,
       cash: cashValue, 
       debt: debtValue, 
       shares: sharesValue 
@@ -198,6 +227,7 @@ async function fetchFromStockAnalysis(symbol: string) {
       market: getMarketType(symbol),
       currentPrice,
       currentFCF: parseValue(fcfValue),
+      fcfGrowthRates,
       cashAndEquivalents: parseValue(cashValue),
       totalDebt: parseValue(debtValue),
       sharesOutstanding: parseShares(sharesValue),
@@ -228,6 +258,7 @@ function getPresetStockData(symbol: string) {
       market: 'US',
       currentPrice: 264,
       currentFCF: 123324,        // 百万美元
+      fcfGrowthRates: [25.46, -9.23, 9.26, -10.64, 19.89], // 最近5年 FCF 增长率
       cashAndEquivalents: 66907, // Cash & Short-Term Investments, 百万美元
       totalDebt: 90509,          // 百万美元
       sharesOutstanding: 14703,  // Total Common Shares Outstanding, 百万股
