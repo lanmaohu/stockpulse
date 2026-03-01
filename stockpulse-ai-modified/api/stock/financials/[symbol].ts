@@ -221,16 +221,21 @@ async function fetchFromStockAnalysis(symbol: string) {
       shares: sharesValue 
     });
     
+    // 根据市场类型设置默认 WACC
+    const marketType = getMarketType(symbol);
+    const defaultWACC = marketType === 'US' ? 10 : marketType === 'HK' ? 12 : 8;
+    
     const result = {
       symbol,
       name: companyName,
-      market: getMarketType(symbol),
+      market: marketType,
       currentPrice,
       currentFCF: parseValue(fcfValue),
       fcfGrowthRates,
       cashAndEquivalents: parseValue(cashValue),
       totalDebt: parseValue(debtValue),
       sharesOutstanding: parseShares(sharesValue),
+      wacc: defaultWACC, // 默认 WACC (%)
       currency: 'USD',
       unit: 'millions',
       source: 'stockanalysis',
@@ -262,6 +267,7 @@ function getPresetStockData(symbol: string) {
       cashAndEquivalents: 66907, // Cash & Short-Term Investments, 百万美元
       totalDebt: 90509,          // 百万美元
       sharesOutstanding: 14703,  // Total Common Shares Outstanding, 百万股
+      wacc: 10,                  // 默认 WACC 10%
       currency: 'USD',
       unit: 'millions',
       source: 'preset',

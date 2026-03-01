@@ -30,6 +30,8 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   useEffect(() => {
     setTicker('AAPL');
     fetchStockDataFromAPI('AAPL');
+    // 设置永续增长率为固定值 3%
+    handleChange('terminalGrowthRate', 3);
   }, []);
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
@@ -56,6 +58,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         totalDebt: stockData.totalDebt,
         sharesOutstanding: stockData.sharesOutstanding,
         currentPrice: stockData.currentPrice,
+        discountRate: stockData.wacc || 10, // 使用 API 返回的 WACC
       }));
       
       // 设置 FCF 增长率数据
@@ -463,21 +466,38 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                 1,
                 '预测期第6-10年的增长率，通常低于前5年，反映增长放缓（建议3-10%）'
               )}
-              {sliderField(
-                '永续增长率',
-                'terminalGrowthRate',
-                0,
-                5,
-                0.5,
-                '预测期结束后的长期永续增长率，通常接近GDP增长率（建议2-3%）'
-              )}
+              {/* 永续增长率 - 固定为 3% */}
+              <div className="space-y-3 p-4 bg-zinc-900/30 rounded-2xl border border-zinc-800/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium text-zinc-400">永续增长率</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-zinc-600 cursor-help hover:text-zinc-400" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
+                          <p className="max-w-xs text-xs">长期永续增长率固定为 GDP 增长率水平，通常取 3%</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <span className="text-lg font-bold text-zinc-400">
+                    3<span className="text-sm text-zinc-500 ml-0.5">%</span>
+                  </span>
+                </div>
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-zinc-600 rounded-full" style={{ width: '60%' }} />
+                </div>
+                <p className="text-[10px] text-zinc-500">固定值，不可调整</p>
+              </div>
               {sliderField(
                 '折现率 (WACC)',
                 'discountRate',
                 5,
                 20,
                 0.5,
-                '加权平均资本成本，反映资金的时间价值和风险（建议8-12%）'
+                '加权平均资本成本(WACC)：美股默认10%，港股默认12%，A股默认8%。可根据公司风险程度调整。'
               )}
             </div>
           </div>
