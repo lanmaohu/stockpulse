@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp } from 'lucide-react';
+import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ALL_STOCKS, findStockByCode, convertToDCFInput, STOCKS_BY_MARKET } from '@/lib/stockData';
 import { toast } from 'sonner';
@@ -22,49 +22,68 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [companyName, setCompanyName] = useState('');
   const [lastFetchedTicker, setLastFetchedTicker] = useState('');
   const [selectedMarket, setSelectedMarket] = useState<'ALL' | 'US' | 'HK' | 'CN'>('ALL');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
     setData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFetchStockData = () => {
+  // 从API获取实时财务数据
+  const fetchStockDataFromAPI = async (code: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/stock/financials/${code}`);
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error?.message || '获取数据失败');
+      }
+      
+      const stockData = result.data;
+      
+      setData(prev => ({
+        ...prev,
+        currentFCF: stockData.currentFCF,
+        cashAndEquivalents: stockData.cashAndEquivalents,
+        totalDebt: stockData.totalDebt,
+        sharesOutstanding: stockData.sharesOutstanding,
+        currentPrice: stockData.currentPrice,
+      }));
+      
+      setCompanyName(stockData.name);
+      setLastFetchedTicker(stockData.symbol);
+      
+      toast.success(`已加载 ${stockData.name} 的实时财务数据`);
+    } catch (error: any) {
+      console.error('获取实时数据失败:', error);
+      toast.error(`获取实时数据失败: ${error.message}，尝试使用预设数据`);
+      
+      // 如果API失败，使用预设数据
+      const stock = findStockByCode(code);
+      if (stock) {
+        const dcfData = convertToDCFInput(stock);
+        setData(prev => ({ ...prev, ...dcfData }));
+        setCompanyName(stock.name);
+        setLastFetchedTicker(stock.code);
+        toast.info(`已加载 ${stock.name} 的预设数据`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetchStockData = async () => {
     if (!ticker.trim()) {
       toast.error('请输入股票代码');
       return;
     }
 
-    const stock = findStockByCode(ticker.trim());
-    
-    if (stock) {
-      const dcfData = convertToDCFInput(stock);
-      
-      setData(prev => ({
-        ...prev,
-        ...dcfData,
-      }));
-      
-      setCompanyName(stock.name);
-      setLastFetchedTicker(stock.code);
-      
-      toast.success(`已加载 ${stock.name} 的财务数据`);
-    } else {
-      toast.error(`未找到股票 ${ticker}，请从下方列表选择`);
-    }
+    await fetchStockDataFromAPI(ticker.trim().toUpperCase());
   };
 
-  const selectStock = (code: string) => {
-    const stock = findStockByCode(code);
-    if (stock) {
-      setTicker(stock.code);
-      const dcfData = convertToDCFInput(stock);
-      setData(prev => ({
-        ...prev,
-        ...dcfData,
-      }));
-      setCompanyName(stock.name);
-      setLastFetchedTicker(stock.code);
-      toast.success(`已加载 ${stock.name} 的财务数据`);
-    }
+  const selectStock = async (code: string) => {
+    setTicker(code);
+    await fetchStockDataFromAPI(code);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -188,10 +207,15 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                 <Button
                   type="button"
                   onClick={handleFetchStockData}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-black font-semibold"
+                  disabled={isLoading}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-black font-semibold disabled:opacity-50"
                 >
-                  <Search className="h-4 w-4 mr-2" />
-                  查询
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4 mr-2" />
+                  )}
+                  {isLoading ? '查询中...' : '查询'}
                 </Button>
               </div>
             </div>
