@@ -251,9 +251,16 @@ export const ALL_STOCKS: StockPresetData[] = [
   ...CN_STOCKS,
 ];
 
+// 按市场分类的股票数据
+export const STOCKS_BY_MARKET = {
+  US: US_STOCKS,
+  HK: HK_STOCKS,
+  CN: CN_STOCKS,
+};
+
 // 根据股票代码查找预设数据
 export function findStockByCode(code: string): StockPresetData | undefined {
-  return ALL_STOCKS.find(stock => stock.code === code);
+  return ALL_STOCKS.find(stock => stock.code.toUpperCase() === code.toUpperCase());
 }
 
 // 将预设数据转换为DCF输入格式
