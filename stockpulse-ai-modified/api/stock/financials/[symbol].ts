@@ -39,7 +39,7 @@ function convertToSAFormat(symbol: string): string {
   return symbol.replace(/\.HK$|\.SS$|\.SZ$/g, '');
 }
 
-// 解析财务数值
+// 解析财务数值（单位：百万美元）
 function parseValue(value: string): number {
   if (!value) return 0;
   const clean = value.replace(/,/g, '').replace(/\s/g, '');
@@ -50,16 +50,17 @@ function parseValue(value: string): number {
   let num = parseFloat(match[1]);
   const suffix = match[2].toUpperCase();
   
+  // Stock Analysis 数据默认是百万单位
   switch (suffix) {
-    case 'B': num *= 1000; break;
-    case 'M': break;
-    case 'K': num *= 0.001; break;
+    case 'B': num *= 1000; break;  // Billion -> Million
+    case 'M': break;               // Million (默认)
+    case 'K': num *= 0.001; break; // Thousand -> Million
   }
   
   return isNegative ? -num : num;
 }
 
-// 解析股本
+// 解析股本（单位：百万股）
 function parseShares(value: string): number {
   if (!value) return 0;
   const clean = value.replace(/,/g, '').replace(/\s/g, '');
@@ -70,19 +71,17 @@ function parseShares(value: string): number {
   const suffix = match[2].toUpperCase();
   
   switch (suffix) {
-    case 'B': return num * 1000;
-    case 'M': return num;
-    case 'K': return num * 0.001;
+    case 'B': return num * 1000;  // Billion shares -> Million
+    case 'M': return num;          // Million shares (默认)
+    case 'K': return num * 0.001;  // Thousand shares -> Million
     default: return num;
   }
 }
 
-// 从 HTML 提取财务数据
-function extractFinancialData(html: string) {
+// 从 HTML 提取表格数据
+function extractRowValue(html: string, labelPatterns: string[]): string {
   // 移除 script 和 style 标签
   const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
-  
-  const data: Record<string, string> = {};
   
   // 提取所有行
   const rows = cleanHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
@@ -90,40 +89,23 @@ function extractFinancialData(html: string) {
   for (const row of rows) {
     const text = row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     
-    // Free Cash Flow (不包含 Per Share 或 Margin)
-    if (text.includes('Free Cash Flow') && 
-        !text.includes('Per Share') && 
-        !text.includes('Margin') &&
-        !data.fcf) {
-      const match = text.match(/(\d{2,3},\d{3})/);
-      if (match) data.fcf = match[1];
-    }
-    
-    // Cash & Equivalents
-    if ((text.includes('Cash & Equivalents') || text.includes('Cash &amp; Equivalents')) && 
-        !data.cash) {
-      const match = text.match(/(\d{2,3},\d{3})/);
-      if (match) data.cash = match[1];
-    }
-    
-    // Total Debt
-    if (text.includes('Total Debt') && 
-        !text.includes('Total Debt to') &&
-        !data.debt) {
-      const match = text.match(/(\d{2,3},\d{3})/);
-      if (match) data.debt = match[1];
-    }
-    
-    // Shares Outstanding
-    if (text.toLowerCase().includes('shares outstanding') && 
-        !text.toLowerCase().includes('growth') &&
-        !data.shares) {
-      const match = text.match(/(\d{2,3},?\d*)\s*(M|B|K)?/i);
-      if (match) data.shares = match[1] + (match[2] || '');
+    // 检查是否匹配标签
+    for (const pattern of labelPatterns) {
+      if (text.toLowerCase().includes(pattern.toLowerCase())) {
+        // 排除包含特定关键词的行
+        if (text.includes('Growth') || text.includes('Per Share') || 
+            text.includes('Margin') || text.includes('Ratio')) {
+          continue;
+        }
+        
+        // 提取第一个数字（最新年度）
+        const match = text.match(/(\d{1,3},\d{3})/);
+        if (match) return match[1];
+      }
     }
   }
   
-  return data;
+  return '';
 }
 
 // 从 Stock Analysis 抓取财务数据
@@ -133,21 +115,49 @@ async function fetchFromStockAnalysis(symbol: string) {
   console.log(`[API] Fetching data for ${symbol}`);
   
   try {
-    // 获取利润表
-    const incomeUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/`;
-    const incomeRes = await fetch(incomeUrl, {
+    // 1. 获取首页股价
+    const overviewUrl = `https://stockanalysis.com/stocks/${saSymbol}/`;
+    const overviewRes = await fetch(overviewUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
     
-    if (!incomeRes.ok) {
-      throw new Error(`HTTP ${incomeRes.status}`);
+    let currentPrice = 0;
+    let companyName = symbol;
+    
+    if (overviewRes.ok) {
+      const overviewHtml = await overviewRes.text();
+      
+      // 提取股价 - 在 NASDAQ 后面查找
+      const priceMatch = overviewHtml.match(/NASDAQ[^\d]{0,200}(\d{3,4}\.\d{2})/) ||
+                         overviewHtml.match(/>(\d{3,4}\.\d{2})<\/div>/);
+      if (priceMatch) {
+        currentPrice = parseFloat(priceMatch[1]);
+      }
+      
+      // 提取公司名称
+      const nameMatch = overviewHtml.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+      if (nameMatch) {
+        companyName = nameMatch[1].replace('Financials', '').trim();
+      }
     }
     
-    const incomeHtml = await incomeRes.text();
+    // 2. 获取 Cash Flow 页面的 Free Cash Flow
+    const cashFlowUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/cash-flow-statement/`;
+    const cashFlowRes = await fetch(cashFlowUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
     
-    // 获取资产负债表
+    let fcfValue = '';
+    if (cashFlowRes.ok) {
+      const cashFlowHtml = await cashFlowRes.text();
+      fcfValue = extractRowValue(cashFlowHtml, ['Free Cash Flow']);
+    }
+    
+    // 3. 获取 Balance Sheet 页面的数据
     const balanceUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/balance-sheet/`;
     const balanceRes = await fetch(balanceUrl, {
       headers: {
@@ -155,42 +165,53 @@ async function fetchFromStockAnalysis(symbol: string) {
       },
     });
     
-    const balanceHtml = balanceRes.ok ? await balanceRes.text() : '';
+    let cashValue = '';
+    let debtValue = '';
+    let sharesValue = '';
     
-    // 提取数据
-    const incomeData = extractFinancialData(incomeHtml);
-    const balanceData = extractFinancialData(balanceHtml);
+    if (balanceRes.ok) {
+      const balanceHtml = await balanceRes.text();
+      
+      // Cash & Short-Term Investments
+      cashValue = extractRowValue(balanceHtml, [
+        'Cash & Short-Term Investments',
+        'Cash &amp; Short-Term Investments'
+      ]);
+      
+      // Total Debt
+      debtValue = extractRowValue(balanceHtml, ['Total Debt']);
+      
+      // Total Common Shares Outstanding
+      sharesValue = extractRowValue(balanceHtml, ['Total Common Shares Outstanding']);
+    }
     
-    // 提取公司名称
-    const nameMatch = incomeHtml.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-    const companyName = nameMatch ? nameMatch[1].replace('Financials', '').trim() : symbol;
+    console.log(`[API] Extracted for ${symbol}:`, { 
+      fcf: fcfValue, 
+      cash: cashValue, 
+      debt: debtValue, 
+      shares: sharesValue 
+    });
     
-    // 提取股价
-    const priceMatch = incomeHtml.match(/"price":\s*([\d.]+)/) || 
-                       incomeHtml.match(/data-price="([\d.]+)"/);
-    const currentPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
-    
-    // 合并数据
-    const fcf = incomeData.fcf || '';
-    const cash = balanceData.cash || incomeData.cash || '';
-    const debt = balanceData.debt || incomeData.debt || '';
-    const shares = balanceData.shares || incomeData.shares || '';
-    
-    console.log(`[API] Extracted for ${symbol}:`, { fcf, cash, debt, shares });
-    
-    return {
+    const result = {
       symbol,
       name: companyName,
       market: getMarketType(symbol),
       currentPrice,
-      currentFCF: parseValue(fcf),
-      cashAndEquivalents: parseValue(cash),
-      totalDebt: parseValue(debt),
-      sharesOutstanding: parseShares(shares),
+      currentFCF: parseValue(fcfValue),
+      cashAndEquivalents: parseValue(cashValue),
+      totalDebt: parseValue(debtValue),
+      sharesOutstanding: parseShares(sharesValue),
       currency: 'USD',
       unit: 'millions',
       source: 'stockanalysis',
     };
+    
+    // 检查是否获取到有效数据
+    if (result.currentFCF === 0 && result.cashAndEquivalents === 0 && result.totalDebt === 0) {
+      throw new Error('NO_DATA_FOUND');
+    }
+    
+    return result;
     
   } catch (error: any) {
     console.error(`[API] Fetch failed: ${error.message}`);
@@ -206,10 +227,10 @@ function getPresetStockData(symbol: string) {
       name: '苹果公司 (Apple)',
       market: 'US',
       currentPrice: 264,
-      currentFCF: 123324,
-      cashAndEquivalents: 45317,
-      totalDebt: 90509,
-      sharesOutstanding: 14681,
+      currentFCF: 123324,        // 百万美元
+      cashAndEquivalents: 66907, // Cash & Short-Term Investments, 百万美元
+      totalDebt: 90509,          // 百万美元
+      sharesOutstanding: 14703,  // Total Common Shares Outstanding, 百万股
       currency: 'USD',
       unit: 'millions',
       source: 'preset',
@@ -309,10 +330,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[API] Fetching real-time data for ${trimmedSymbol}`);
       const result = await fetchFromStockAnalysis(trimmedSymbol);
       
-      if (result.currentFCF > 0) {
-        console.log(`[API] Success: FCF=${result.currentFCF}`);
-        return res.status(200).json(createAPISuccess(result));
-      }
+      console.log(`[API] Success for ${trimmedSymbol}:`, {
+        fcf: result.currentFCF,
+        cash: result.cashAndEquivalents,
+        debt: result.totalDebt,
+        shares: result.sharesOutstanding
+      });
+      
+      return res.status(200).json(createAPISuccess(result));
     } catch (error: any) {
       console.log(`[API] Real-time fetch failed: ${error.message}`);
     }

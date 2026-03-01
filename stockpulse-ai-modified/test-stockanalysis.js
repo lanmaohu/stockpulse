@@ -21,7 +21,7 @@ const log = {
   warn: (msg) => console.log(colors.yellow + msg + colors.reset),
 };
 
-// 解析财务数值
+// 解析财务数值（单位：百万）
 function parseValue(value) {
   if (!value) return 0;
   const clean = value.replace(/,/g, '').replace(/\s/g, '');
@@ -33,15 +33,15 @@ function parseValue(value) {
   const suffix = match[2].toUpperCase();
   
   switch (suffix) {
-    case 'B': num *= 1000; break;
-    case 'M': break;
-    case 'K': num *= 0.001; break;
+    case 'B': num *= 1000; break;  // Billion -> Million
+    case 'M': break;               // Million
+    case 'K': num *= 0.001; break; // Thousand -> Million
   }
   
   return isNegative ? -num : num;
 }
 
-// 解析股本
+// 解析股本（单位：百万股）
 function parseShares(value) {
   if (!value) return 0;
   const clean = value.replace(/,/g, '').replace(/\s/g, '');
@@ -59,122 +59,133 @@ function parseShares(value) {
   }
 }
 
-// 从 HTML 提取财务数据
-function extractFinancialData(html) {
-  // 移除 script 和 style 标签
+// 从 HTML 提取行数据
+function extractRowValue(html, labelPatterns) {
   const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
-  
-  const data = {};
-  
-  // 提取所有行
   const rows = cleanHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
   
   for (const row of rows) {
     const text = row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     
-    // Free Cash Flow (不包含 Per Share 或 Margin)
-    if (text.includes('Free Cash Flow') && 
-        !text.includes('Per Share') && 
-        !text.includes('Margin') &&
-        !data.fcf) {
-      const match = text.match(/(\d{2,3},\d{3})/);
-      if (match) data.fcf = match[1];
-    }
-    
-    // Cash & Equivalents
-    if ((text.includes('Cash & Equivalents') || text.includes('Cash &amp; Equivalents')) && 
-        !data.cash) {
-      const match = text.match(/(\d{2,3},\d{3})/);
-      if (match) data.cash = match[1];
-    }
-    
-    // Total Debt
-    if (text.includes('Total Debt') && 
-        !text.includes('Total Debt to') &&
-        !data.debt) {
-      const match = text.match(/(\d{2,3},\d{3})/);
-      if (match) data.debt = match[1];
-    }
-    
-    // Shares Outstanding
-    if (text.toLowerCase().includes('shares outstanding') && 
-        !text.toLowerCase().includes('growth') &&
-        !data.shares) {
-      const match = text.match(/(\d{2,3},?\d*)\s*(M|B|K)?/i);
-      if (match) data.shares = match[1] + (match[2] || '');
+    for (const pattern of labelPatterns) {
+      if (text.toLowerCase().includes(pattern.toLowerCase())) {
+        if (text.includes('Growth') || text.includes('Per Share') || 
+            text.includes('Margin') || text.includes('Ratio')) {
+          continue;
+        }
+        
+        const match = text.match(/(\d{1,3},\d{3})/);
+        if (match) return match[1];
+      }
     }
   }
   
-  return data;
+  return '';
 }
 
 // 测试 Apple 数据抓取
 async function testAppleFinancials() {
   log.info('🧪 测试 Stock Analysis API - Apple (AAPL)');
-  console.log('=' .repeat(60));
+  console.log('=' .repeat(70));
   
   const symbol = 'AAPL';
   const saSymbol = symbol.toLowerCase();
   
   try {
-    // 获取利润表
-    log.info('\n📊 步骤1: 获取利润表...');
-    const incomeUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/`;
-    const incomeRes = await fetch(incomeUrl, {
+    // 1. 获取首页股价
+    log.info('\n📊 步骤1: 获取首页股价...');
+    const overviewUrl = `https://stockanalysis.com/stocks/${saSymbol}/`;
+    const overviewRes = await fetch(overviewUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html',
       },
     });
     
-    if (!incomeRes.ok) {
-      throw new Error(`HTTP ${incomeRes.status}`);
+    let currentPrice = 0;
+    let companyName = symbol;
+    
+    if (overviewRes.ok) {
+      const overviewHtml = await overviewRes.text();
+      
+      const priceMatch = overviewHtml.match(/NASDAQ[^\d]{0,200}(\d{3,4}\.\d{2})/) ||
+                         overviewHtml.match(/>(\d{3,4}\.\d{2})<\/div>/);
+      if (priceMatch) {
+        currentPrice = parseFloat(priceMatch[1]);
+      }
+      
+      const nameMatch = overviewHtml.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+      if (nameMatch) {
+        companyName = nameMatch[1].trim();
+      }
+      
+      log.success(`  ✅ 股价: $${currentPrice}`);
+      log.success(`  ✅ 公司名称: ${companyName}`);
     }
     
-    const incomeHtml = await incomeRes.text();
-    log.success('✅ 利润表获取成功');
+    // 2. 获取 Cash Flow 页面的 Free Cash Flow
+    log.info('\n📊 步骤2: 从 Cash Flow 页面获取 Free Cash Flow...');
+    const cashFlowUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/cash-flow-statement/`;
+    const cashFlowRes = await fetch(cashFlowUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
     
-    // 获取资产负债表
-    log.info('\n📊 步骤2: 获取资产负债表...');
+    let fcfValue = '';
+    if (cashFlowRes.ok) {
+      const cashFlowHtml = await cashFlowRes.text();
+      fcfValue = extractRowValue(cashFlowHtml, ['Free Cash Flow']);
+      log.success(`  ✅ Free Cash Flow: ${fcfValue} 百万美元`);
+    } else {
+      log.error(`  ❌ 获取失败: HTTP ${cashFlowRes.status}`);
+    }
+    
+    // 3. 获取 Balance Sheet 页面数据
+    log.info('\n📊 步骤3: 从 Balance Sheet 页面获取数据...');
     const balanceUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/balance-sheet/`;
     const balanceRes = await fetch(balanceUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html',
       },
     });
     
-    const balanceHtml = balanceRes.ok ? await balanceRes.text() : '';
-    log.success(balanceRes.ok ? '✅ 资产负债表获取成功' : '⚠️ 资产负债表获取失败');
+    let cashValue = '';
+    let debtValue = '';
+    let sharesValue = '';
     
-    // 提取数据
-    log.info('\n📋 步骤3: 提取财务数据...');
-    const incomeData = extractFinancialData(incomeHtml);
-    const balanceData = extractFinancialData(balanceHtml);
-    
-    // 合并数据（优先使用资产负债表的数据）
-    const fcf = incomeData.fcf;
-    const cash = balanceData.cash || incomeData.cash;
-    const debt = balanceData.debt || incomeData.debt;
-    const shares = balanceData.shares || incomeData.shares;
-    
-    log.info('\n📈 提取结果:');
-    console.log(`  Free Cash Flow: ${fcf || '❌ 未找到'}`);
-    console.log(`  Cash & Equivalents: ${cash || '❌ 未找到'}`);
-    console.log(`  Total Debt: ${debt || '❌ 未找到'}`);
-    console.log(`  Shares Outstanding: ${shares || '❌ 未找到'}`);
+    if (balanceRes.ok) {
+      const balanceHtml = await balanceRes.text();
+      
+      // Cash & Short-Term Investments
+      cashValue = extractRowValue(balanceHtml, [
+        'Cash & Short-Term Investments',
+        'Cash &amp; Short-Term Investments'
+      ]);
+      log.success(`  ✅ Cash & Short-Term Investments: ${cashValue} 百万美元`);
+      
+      // Total Debt
+      debtValue = extractRowValue(balanceHtml, ['Total Debt']);
+      log.success(`  ✅ Total Debt: ${debtValue} 百万美元`);
+      
+      // Total Common Shares Outstanding
+      sharesValue = extractRowValue(balanceHtml, ['Total Common Shares Outstanding']);
+      log.success(`  ✅ Total Common Shares Outstanding: ${sharesValue} 百万股`);
+    } else {
+      log.error(`  ❌ 获取失败: HTTP ${balanceRes.status}`);
+    }
     
     // 解析数值
     log.info('\n🔢 步骤4: 解析数值...');
-    const fcfValue = parseValue(fcf);
-    const cashValue = parseValue(cash);
-    const debtValue = parseValue(debt);
-    const sharesValue = parseShares(shares);
+    const fcf = parseValue(fcfValue);
+    const cash = parseValue(cashValue);
+    const debt = parseValue(debtValue);
+    const shares = parseShares(sharesValue);
     
-    console.log(`  FCF (百万美元): ${fcfValue ? fcfValue.toLocaleString() : '❌'}`);
-    console.log(`  Cash (百万美元): ${cashValue ? cashValue.toLocaleString() : '❌'}`);
-    console.log(`  Debt (百万美元): ${debtValue ? debtValue.toLocaleString() : '❌'}`);
-    console.log(`  Shares (百万股): ${sharesValue ? sharesValue.toLocaleString() : '❌'}`);
+    console.log(`  Free Cash Flow: ${fcf.toLocaleString()} 百万美元`);
+    console.log(`  Cash & Short-Term Investments: ${cash.toLocaleString()} 百万美元`);
+    console.log(`  Total Debt: ${debt.toLocaleString()} 百万美元`);
+    console.log(`  Total Common Shares Outstanding: ${shares.toLocaleString()} 百万股`);
+    console.log(`  当前股价: $${currentPrice}`);
     
     // 断言验证
     log.info('\n✅ 断言验证:');
@@ -182,43 +193,52 @@ async function testAppleFinancials() {
     let failed = 0;
     
     // 验证 FCF (Apple 2024 FCF 约 123,324 百万美元)
-    if (fcfValue > 100000 && fcfValue < 150000) {
-      log.success(`  ✓ FCF 在预期范围内: ${fcfValue.toLocaleString()} 百万美元`);
+    if (fcf > 100000 && fcf < 150000) {
+      log.success(`  ✓ Free Cash Flow 在预期范围内: ${fcf.toLocaleString()} 百万美元`);
       passed++;
     } else {
-      log.error(`  ✗ FCF 不在预期范围内: ${fcfValue} (预期: 100000-150000)`);
+      log.error(`  ✗ Free Cash Flow 不在预期范围内: ${fcf} (预期: 100,000-150,000)`);
       failed++;
     }
     
-    // 验证 Cash (Apple 现金约 45,000-50,000 百万美元)
-    if (cashValue > 40000 && cashValue < 70000) {
-      log.success(`  ✓ Cash 在预期范围内: ${cashValue.toLocaleString()} 百万美元`);
+    // 验证 Cash (Apple 约 66,907 百万美元)
+    if (cash > 60000 && cash < 80000) {
+      log.success(`  ✓ Cash & Short-Term Investments 在预期范围内: ${cash.toLocaleString()} 百万美元`);
       passed++;
     } else {
-      log.error(`  ✗ Cash 不在预期范围内: ${cashValue} (预期: 40000-70000)`);
+      log.error(`  ✗ Cash & Short-Term Investments 不在预期范围内: ${cash} (预期: 60,000-80,000)`);
       failed++;
     }
     
-    // 验证 Debt (Apple 负债约 90,000-120,000 百万美元)
-    if (debtValue > 80000 && debtValue < 150000) {
-      log.success(`  ✓ Debt 在预期范围内: ${debtValue.toLocaleString()} 百万美元`);
+    // 验证 Debt (Apple 约 90,509 百万美元)
+    if (debt > 80000 && debt < 120000) {
+      log.success(`  ✓ Total Debt 在预期范围内: ${debt.toLocaleString()} 百万美元`);
       passed++;
     } else {
-      log.error(`  ✗ Debt 不在预期范围内: ${debtValue} (预期: 80000-150000)`);
+      log.error(`  ✗ Total Debt 不在预期范围内: ${debt} (预期: 80,000-120,000)`);
       failed++;
     }
     
-    // 验证 Shares (Apple 股本约 14,000-16,000 百万股)
-    if (sharesValue > 14000 && sharesValue < 17000) {
-      log.success(`  ✓ Shares 在预期范围内: ${sharesValue.toLocaleString()} 百万股`);
+    // 验证 Shares (Apple 约 14,703 百万股)
+    if (shares > 14000 && shares < 16000) {
+      log.success(`  ✓ Total Common Shares Outstanding 在预期范围内: ${shares.toLocaleString()} 百万股`);
       passed++;
     } else {
-      log.error(`  ✗ Shares 不在预期范围内: ${sharesValue} (预期: 14000-17000)`);
+      log.error(`  ✗ Total Common Shares Outstanding 不在预期范围内: ${shares} (预期: 14,000-16,000)`);
+      failed++;
+    }
+    
+    // 验证股价
+    if (currentPrice > 200 && currentPrice < 400) {
+      log.success(`  ✓ 当前股价在预期范围内: $${currentPrice}`);
+      passed++;
+    } else {
+      log.error(`  ✗ 当前股价不在预期范围内: $${currentPrice} (预期: 200-400)`);
       failed++;
     }
     
     // 测试总结
-    console.log('\n' + '='.repeat(60));
+    console.log('\n' + '='.repeat(70));
     log.info('📝 测试结果:');
     console.log(`  通过: ${passed}`);
     console.log(`  失败: ${failed}`);
@@ -234,6 +254,7 @@ async function testAppleFinancials() {
     
   } catch (error) {
     log.error('\n❌ 测试失败:', error.message);
+    console.error(error);
     process.exit(1);
   }
 }
