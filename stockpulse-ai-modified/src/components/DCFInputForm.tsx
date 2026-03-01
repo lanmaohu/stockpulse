@@ -66,8 +66,8 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         setRevenueGrowthRates(stockData.revenueGrowthRates);
         // 取最近一年的 Revenue Growth 作为前5年增长率默认值
         const latestGrowthRate = Math.round(stockData.revenueGrowthRates[0]);
-        // 第6-10年增长率在前5年基础上减少30%
-        const years6to10Rate = Math.round(latestGrowthRate * 0.7);
+        // 第6-10年增长率在前5年基础上减少20%
+        const years6to10Rate = Math.round(latestGrowthRate * 0.8);
         handleChange('growthRateYears1to5', latestGrowthRate);
         handleChange('growthRateYears6to10', years6to10Rate);
       }
@@ -461,8 +461,8 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                   value={[data.growthRateYears1to5]}
                   onValueChange={([value]) => {
                     handleChange('growthRateYears1to5', value);
-                    // 第6-10年增长率在前5年基准值上减少30%（即前5年的70%）
-                    handleChange('growthRateYears6to10', Math.round(value * 0.7));
+                    // 第6-10年增长率在前5年基准值上减少20%（即前5年的80%）
+                    handleChange('growthRateYears6to10', Math.round(value * 0.8));
                   }}
                   min={0}
                   max={100}
@@ -480,7 +480,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                 0,
                 30,
                 1,
-                '预测期第6-10年的增长率，自动设为前5年增长率的70%（减少30%），反映增长放缓'
+                '预测期第6-10年的增长率，自动设为前5年增长率的80%（减少20%），反映增长放缓'
               )}
               {/* 永续增长率 - 可修改，默认 3% */}
               {sliderField(
