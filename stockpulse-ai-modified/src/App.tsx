@@ -132,7 +132,7 @@ function App() {
           {result && (
             <div id="results-section" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <Tabs defaultValue="summary" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-6 bg-zinc-950 border border-zinc-900 p-1 rounded-2xl">
+                <TabsList className="grid w-full grid-cols-2 mb-6 bg-zinc-950 border border-zinc-900 p-1 rounded-2xl">
                   <TabsTrigger 
                     value="summary" 
                     className="flex items-center gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-black rounded-xl"
