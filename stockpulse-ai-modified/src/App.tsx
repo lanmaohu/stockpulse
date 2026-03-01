@@ -147,13 +147,7 @@ function App() {
                     <ListOrdered className="h-4 w-4" />
                     计算步骤
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="details" 
-                    className="flex items-center gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-black rounded-xl"
-                  >
-                    <Calculator className="h-4 w-4" />
-                    详细数据
-                  </TabsTrigger>
+
                 </TabsList>
 
                 <TabsContent value="summary" className="mt-0">
@@ -164,9 +158,7 @@ function App() {
                   <CalculationSteps steps={result.calculationSteps} />
                 </TabsContent>
 
-                <TabsContent value="details" className="mt-0">
-                  <DetailedData result={result} inputData={inputData} />
-                </TabsContent>
+
               </Tabs>
             </div>
           )}
@@ -209,104 +201,6 @@ function NavButton({ icon: Icon, isActive, onClick, label }: NavButtonProps) {
     >
       <Icon className="w-full h-full" />
     </button>
-  );
-}
-
-// 详细数据组件
-function DetailedData({ result, inputData }: { result: DCFResult; inputData: DCFInputData }) {
-  return (
-    <div className="space-y-6">
-      {/* 关键参数汇总 */}
-      <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-8 shadow-sm">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-          关键参数汇总
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">当前FCF</div>
-            <div className="font-mono font-medium text-white">{inputData.currentFCF.toFixed(2)} 亿</div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">前5年增长率</div>
-            <div className="font-mono font-medium text-white">{inputData.growthRateYears1to5}%</div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">6-10年增长率</div>
-            <div className="font-mono font-medium text-white">{inputData.growthRateYears6to10}%</div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">永续增长率</div>
-            <div className="font-mono font-medium text-white">{inputData.terminalGrowthRate}%</div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">折现率 (WACC)</div>
-            <div className="font-mono font-medium text-white">{inputData.discountRate}%</div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">预测期年数</div>
-            <div className="font-mono font-medium text-white">{inputData.projectionYears} 年</div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">净债务</div>
-            <div className={cn(
-              "font-mono font-medium",
-              inputData.totalDebt > inputData.cashAndEquivalents ? 'text-rose-500' : 'text-emerald-500'
-            )}>
-              {(inputData.totalDebt - inputData.cashAndEquivalents).toFixed(2)} 亿
-            </div>
-          </div>
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-xs text-zinc-500">总股本</div>
-            <div className="font-mono font-medium text-white">{inputData.sharesOutstanding.toFixed(2)} 亿股</div>
-          </div>
-        </div>
-      </div>
-
-      {/* 计算过程公式展示 */}
-      <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-8 shadow-sm">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <div className="w-1 h-4 bg-emerald-500 rounded-full" />
-          DCF估值核心公式
-        </h3>
-        <div className="space-y-4">
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-sm font-medium text-emerald-400 mb-2">1. 企业价值公式</div>
-            <div className="font-mono text-lg text-white">
-              EV = Σ [FCFₜ / (1 + r)ᵗ] + TV / (1 + r)ⁿ
-            </div>
-            <div className="text-sm text-zinc-500 mt-2">
-              其中：FCFₜ = 第t年自由现金流，r = 折现率，TV = 终值，n = 预测期年数
-            </div>
-          </div>
-          
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-sm font-medium text-emerald-400 mb-2">2. 终值公式 (Gordon增长模型)</div>
-            <div className="font-mono text-lg text-white">
-              TV = FCFₙ × (1 + g) / (r - g)
-            </div>
-            <div className="text-sm text-zinc-500 mt-2">
-              其中：FCFₙ = 最后一年自由现金流，g = 永续增长率
-            </div>
-          </div>
-          
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-sm font-medium text-emerald-400 mb-2">3. 股权价值公式</div>
-            <div className="font-mono text-lg text-white">
-              股权价值 = EV + 现金 - 负债
-            </div>
-          </div>
-          
-          <div className="p-4 bg-zinc-900 rounded-2xl border border-zinc-800">
-            <div className="text-sm font-medium text-emerald-400 mb-2">4. 每股价值公式</div>
-            <div className="font-mono text-lg text-white">
-              每股价值 = 股权价值 / 总股本
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
   );
 }
 
