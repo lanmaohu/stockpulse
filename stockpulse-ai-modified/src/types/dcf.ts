@@ -2,10 +2,10 @@
 
 export interface DCFInputData {
   // 基础财务数据
-  currentFCF: number;           // 当前年度自由现金流（亿元）
-  cashAndEquivalents: number;   // 现金及现金等价物（亿元）
-  totalDebt: number;            // 总负债（亿元）
-  sharesOutstanding: number;    // 总股本（亿股）
+  currentFCF: number;           // 当前年度自由现金流（百万元）
+  cashAndEquivalents: number;   // 现金及现金等价物（百万元）
+  totalDebt: number;            // 总负债（百万元）
+  sharesOutstanding: number;    // 总股本（百万股）
   currentPrice: number;         // 当前股价（元）
   
   // 增长率和折现率假设

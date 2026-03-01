@@ -21,7 +21,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 123324,         // 1233亿美元
     cashAndEquivalents: 45317,  // 453亿美元
     totalDebt: 90509,           // 905亿美元
-    sharesOutstanding: 14680,   // 146.8亿股
+    sharesOutstanding: 14680,   // 146.8百万股
     currentPrice: 264,
     currency: 'USD',
   },
@@ -32,7 +32,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 67400,          // 674亿美元
     cashAndEquivalents: 78000,  // 780亿美元
     totalDebt: 42000,           // 420亿美元
-    sharesOutstanding: 7420,    // 74.2亿股
+    sharesOutstanding: 7420,    // 74.2百万股
     currentPrice: 420,
     currency: 'USD',
   },
@@ -43,7 +43,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 72700,          // 727亿美元
     cashAndEquivalents: 101000, // 1010亿美元
     totalDebt: 13200,           // 132亿美元
-    sharesOutstanding: 12500,   // 125亿股
+    sharesOutstanding: 12500,   // 125百万股
     currentPrice: 165,
     currency: 'USD',
   },
@@ -54,7 +54,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 4400,           // 44亿美元
     cashAndEquivalents: 29100,  // 291亿美元
     totalDebt: 7200,            // 72亿美元
-    sharesOutstanding: 3200,    // 32亿股
+    sharesOutstanding: 3200,    // 32百万股
     currentPrice: 175,
     currency: 'USD',
   },
@@ -65,7 +65,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 37800,          // 378亿美元
     cashAndEquivalents: 25900,  // 259亿美元
     totalDebt: 8500,            // 85亿美元
-    sharesOutstanding: 24600,   // 246亿股
+    sharesOutstanding: 24600,   // 246百万股
     currentPrice: 120,
     currency: 'USD',
   },
@@ -76,7 +76,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 36800,          // 368亿美元
     cashAndEquivalents: 86000,  // 860亿美元
     totalDebt: 54000,           // 540亿美元
-    sharesOutstanding: 10400,   // 104亿股
+    sharesOutstanding: 10400,   // 104百万股
     currentPrice: 185,
     currency: 'USD',
   },
@@ -87,7 +87,7 @@ const US_STOCKS: StockPresetData[] = [
     currentFCF: 48800,          // 488亿美元
     cashAndEquivalents: 77800,  // 778亿美元
     totalDebt: 18600,           // 186亿美元
-    sharesOutstanding: 2570,    // 25.7亿股
+    sharesOutstanding: 2570,    // 25.7百万股
     currentPrice: 500,
     currency: 'USD',
   },
@@ -102,7 +102,7 @@ const HK_STOCKS: StockPresetData[] = [
     currentFCF: 150000,         // 1500亿港元
     cashAndEquivalents: 288000, // 2880亿港元
     totalDebt: 216000,          // 2160亿港元
-    sharesOutstanding: 9300,    // 93亿股
+    sharesOutstanding: 9300,    // 93百万股
     currentPrice: 385,
     currency: 'HKD',
   },
@@ -113,7 +113,7 @@ const HK_STOCKS: StockPresetData[] = [
     currentFCF: 42000,          // 420亿港元
     cashAndEquivalents: 120000, // 1200亿港元
     totalDebt: 18000,           // 180亿港元
-    sharesOutstanding: 6200,    // 62亿股
+    sharesOutstanding: 6200,    // 62百万股
     currentPrice: 115,
     currency: 'HKD',
   },
@@ -124,7 +124,7 @@ const HK_STOCKS: StockPresetData[] = [
     currentFCF: 85000,          // 850亿港元
     cashAndEquivalents: 95000,  // 950亿港元
     totalDebt: 980000,          // 9800亿港元
-    sharesOutstanding: 18200,   // 182亿股
+    sharesOutstanding: 18200,   // 182百万股
     currentPrice: 42,
     currency: 'HKD',
   },
@@ -135,7 +135,7 @@ const HK_STOCKS: StockPresetData[] = [
     currentFCF: 158000,         // 1580亿港元
     cashAndEquivalents: 318000, // 3180亿港元
     totalDebt: 185000,          // 1850亿港元
-    sharesOutstanding: 19000,   // 190亿股
+    sharesOutstanding: 19000,   // 190百万股
     currentPrice: 82,
     currency: 'HKD',
   },
@@ -146,7 +146,7 @@ const HK_STOCKS: StockPresetData[] = [
     currentFCF: 12500,          // 125亿港元
     cashAndEquivalents: 78000,  // 780亿港元
     totalDebt: 72000,           // 720亿港元
-    sharesOutstanding: 2900,    // 29亿股
+    sharesOutstanding: 2900,    // 29百万股
     currentPrice: 275,
     currency: 'HKD',
   },
@@ -161,7 +161,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 64000,          // 640亿人民币
     cashAndEquivalents: 156000, // 1560亿人民币
     totalDebt: 0,               // 无有息负债
-    sharesOutstanding: 1256,    // 12.56亿股
+    sharesOutstanding: 1256,    // 12.56百万股
     currentPrice: 1580,
     currency: 'CNY',
   },
@@ -172,7 +172,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 30000,          // 300亿人民币
     cashAndEquivalents: 125000, // 1250亿人民币
     totalDebt: 0,
-    sharesOutstanding: 3880,    // 38.8亿股
+    sharesOutstanding: 3880,    // 38.8百万股
     currentPrice: 145,
     currency: 'CNY',
   },
@@ -183,7 +183,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 78000,          // 780亿人民币
     cashAndEquivalents: 82000,  // 820亿人民币
     totalDebt: 850000,          // 8500亿人民币
-    sharesOutstanding: 18200,   // 182亿股
+    sharesOutstanding: 18200,   // 182百万股
     currentPrice: 48,
     currency: 'CNY',
   },
@@ -194,7 +194,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 45000,          // 450亿人民币
     cashAndEquivalents: 82000,  // 820亿人民币
     totalDebt: 35000,           // 350亿人民币
-    sharesOutstanding: 7000,    // 70亿股
+    sharesOutstanding: 7000,    // 70百万股
     currentPrice: 62,
     currency: 'CNY',
   },
@@ -205,7 +205,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 15000,          // 150亿人民币
     cashAndEquivalents: 68000,  // 680亿人民币
     totalDebt: 95000,           // 950亿人民币
-    sharesOutstanding: 37600,   // 376亿股
+    sharesOutstanding: 37600,   // 376百万股
     currentPrice: 4.2,
     currency: 'CNY',
   },
@@ -216,7 +216,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 12500,          // 125亿人民币
     cashAndEquivalents: 78000,  // 780亿人民币
     totalDebt: 72000,           // 720亿人民币
-    sharesOutstanding: 2900,    // 29亿股
+    sharesOutstanding: 2900,    // 29百万股
     currentPrice: 275,
     currency: 'CNY',
   },
@@ -227,7 +227,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 52000,          // 520亿人民币
     cashAndEquivalents: 240000, // 2400亿人民币
     totalDebt: 78000,           // 780亿人民币
-    sharesOutstanding: 4400,    // 44亿股
+    sharesOutstanding: 4400,    // 44百万股
     currentPrice: 215,
     currency: 'CNY',
   },
@@ -238,7 +238,7 @@ const CN_STOCKS: StockPresetData[] = [
     currentFCF: 5800,           // 58亿人民币
     cashAndEquivalents: 22000,  // 220亿人民币
     totalDebt: 2800,            // 28亿人民币
-    sharesOutstanding: 2070,    // 20.7亿股
+    sharesOutstanding: 2070,    // 20.7百万股
     currentPrice: 67,
     currency: 'CNY',
   },

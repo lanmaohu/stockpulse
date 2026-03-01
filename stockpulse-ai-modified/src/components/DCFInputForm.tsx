@@ -147,7 +147,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const inputField = (
     label: string,
     field: keyof DCFInputData,
-    unit: string = '亿元',
+    unit: string = '百万元',
     tooltip: string = '',
     step: string = '0.01'
   ) => (
@@ -372,25 +372,25 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               {inputField(
                 '当前年度自由现金流 (FCF)',
                 'currentFCF',
-                '亿元',
+                '百万元',
                 '公司最近一个财年的自由现金流，可通过经营活动现金流减去资本支出计算得出'
               )}
               {inputField(
                 '现金及现金等价物',
                 'cashAndEquivalents',
-                '亿元',
+                '百万元',
                 '公司资产负债表上的现金、银行存款和短期投资'
               )}
               {inputField(
                 '总负债',
                 'totalDebt',
-                '亿元',
+                '百万元',
                 '公司有息负债总额，包括短期借款和长期借款'
               )}
               {inputField(
                 '总股本',
                 'sharesOutstanding',
-                '亿股',
+                '百万股',
                 '公司发行在外的普通股总数'
               )}
               {inputField(
