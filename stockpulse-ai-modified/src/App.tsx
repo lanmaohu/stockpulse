@@ -113,8 +113,8 @@ function App() {
                     <div className="text-xs text-zinc-500 space-y-1">
                       <p><span className="text-zinc-400">步骤1 - 基准数据：</span>当前FCF约1500百万港元，现金3130百万，负债2350百万，股本93百万股</p>
                       <p><span className="text-zinc-400">步骤2 - 预测未来：</span>假设前5年增长率12%，6-10年增长率8%，永续增长率3%</p>
-                      <p><span className="text-zinc-400">步骤3 - 计算终值：</span>第10年FCF约3800亿，终值 = 3800 × (1+3%) / (10%-3%) ≈ 5.6万亿港元</p>
-                      <p><span className="text-zinc-400">步骤4 - 折现计算：</span>预测期现值约8000亿 + 终值现值约2.1万亿 = 企业价值约2.9万亿</p>
+                      <p><span className="text-zinc-400">步骤3 - 计算终值：</span>第10年FCF约380000百万，终值 = 380000 × (1+3%) / (10%-3%) ≈ 5580000百万港元</p>
+                      <p><span className="text-zinc-400">步骤4 - 折现计算：</span>预测期现值约800000百万 + 终值现值约2100000百万 = 企业价值约2900000百万</p>
                       <p><span className="text-zinc-400">步骤5 - 得出结果：</span>股权价值 = 2900百万 + 78百万(净现金) = 2978百万 ÷ 93百万股 ≈ <span className="text-emerald-400 font-medium">395港元/股</span></p>
                     </div>
                   </div>

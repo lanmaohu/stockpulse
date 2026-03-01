@@ -159,11 +159,11 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
               <span className="text-zinc-500">净债务调整:</span>
               <span className="font-medium">
                 现金 <span className="text-emerald-500">+{inputData.cashAndEquivalents.toFixed(2)}</span>
-                {' '}亿 - 负债 <span className="text-rose-500">-{inputData.totalDebt.toFixed(2)}</span>
-                {' '}亿 = 
+                {' '}百万 - 负债 <span className="text-rose-500">-{inputData.totalDebt.toFixed(2)}</span>
+                {' '}百万 = 
                 <span className={inputData.cashAndEquivalents >= inputData.totalDebt ? 'text-emerald-500' : 'text-rose-500'}>
                   {' '}{inputData.cashAndEquivalents >= inputData.totalDebt ? '+' : ''}
-                  {(inputData.cashAndEquivalents - inputData.totalDebt).toFixed(2)}亿
+                  {(inputData.cashAndEquivalents - inputData.totalDebt).toFixed(2)}百万$
                 </span>
               </span>
             </div>
@@ -205,13 +205,13 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono text-white">
-                    {proj.fcf.toFixed(2)} 亿
+                    {proj.fcf.toFixed(2)} 百万$
                   </TableCell>
                   <TableCell className="text-right font-mono text-zinc-500">
                     {proj.discountFactor.toFixed(4)}
                   </TableCell>
                   <TableCell className="text-right font-mono font-medium text-emerald-400">
-                    {proj.presentValue.toFixed(2)} 亿
+                    {proj.presentValue.toFixed(2)} 百万$
                   </TableCell>
                 </TableRow>
               ))}
@@ -220,7 +220,7 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
                   预测期现金流现值总和:
                 </TableCell>
                 <TableCell className="text-right font-mono text-lg text-emerald-400">
-                  {result.projections.reduce((sum, p) => sum + p.presentValue, 0).toFixed(2)} 亿
+                  {result.projections.reduce((sum, p) => sum + p.presentValue, 0).toFixed(2)} 百万$
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -254,7 +254,7 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
                 <div className="flex justify-between">
                   <span className="text-zinc-500">最后一年FCF (FCFₙ):</span>
                   <span className="font-mono font-medium text-white">
-                    {result.projections[result.projections.length - 1]?.fcf.toFixed(2)} 亿
+                    {result.projections[result.projections.length - 1]?.fcf.toFixed(2)} 百万$
                   </span>
                 </div>
                 <div className="flex justify-between">
