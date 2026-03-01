@@ -98,12 +98,17 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
       toast.error('请输入股票代码');
       return;
     }
-
+    
+    // 重置估值结果
+    onReset();
+    
     await fetchStockDataFromAPI(ticker.trim().toUpperCase());
   };
 
   const selectStock = async (code: string) => {
     setTicker(code);
+    // 重置估值结果
+    onReset();
     await fetchStockDataFromAPI(code);
   };
 
