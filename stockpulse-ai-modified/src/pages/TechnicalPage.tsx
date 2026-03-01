@@ -51,50 +51,71 @@ function generateMockCandles(symbol: string): CandleData[] {
   return candles;
 }
 
-// 简单的 K 线图表组件
+// 简单的 K 线图表组件（含成交量）
 function SimpleChart({ candles, ma5, ma20 }: { candles: CandleData[]; ma5?: number[]; ma20?: number[] }) {
   if (candles.length === 0) return null;
   
   const width = 800;
-  const height = 300;
-  const padding = 40;
+  const chartHeight = 280;
+  const volumeHeight = 100;
+  const gap = 20;
+  const totalHeight = chartHeight + volumeHeight + gap;
+  const padding = { top: 20, right: 60, bottom: 30, left: 10 };
   
+  const plotWidth = width - padding.left - padding.right;
+  
+  // 价格范围
   const prices = candles.map(c => [c.high, c.low, c.open, c.close]).flat();
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
-  const priceRange = maxPrice - minPrice;
+  const priceRange = maxPrice - minPrice || 1;
   
-  const xScale = (width - padding * 2) / candles.length;
-  const yScale = (height - padding * 2) / priceRange;
+  // 成交量范围
+  const maxVolume = Math.max(...candles.map(c => c.volume));
   
-  const priceToY = (price: number) => height - padding - (price - minPrice) * yScale;
-  const indexToX = (i: number) => padding + i * xScale + xScale / 2;
+  const xScale = plotWidth / candles.length;
+  const priceYScale = (chartHeight - padding.top - padding.bottom) / priceRange;
+  const volumeYScale = (volumeHeight - 20) / maxVolume;
+  
+  const priceToY = (price: number) => chartHeight - padding.bottom - (price - minPrice) * priceYScale;
+  const volumeToY = (vol: number) => totalHeight - 10 - vol * volumeYScale;
+  const indexToX = (i: number) => padding.left + i * xScale + xScale / 2;
+  
+  // 格式化成交量
+  const formatVolume = (vol: number) => {
+    if (vol >= 1000000) return (vol / 1000000).toFixed(1) + 'M';
+    if (vol >= 1000) return (vol / 1000).toFixed(1) + 'K';
+    return vol.toString();
+  };
   
   return (
     <div className="overflow-x-auto">
-      <svg width={width} height={height} className="bg-zinc-950">
+      <svg width={width} height={totalHeight} className="bg-zinc-950">
+        {/* ===== 价格图表区域 ===== */}
         {/* 网格线 */}
-        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => (
-          <g key={i}>
-            <line
-              x1={padding}
-              y1={padding + t * (height - padding * 2)}
-              x2={width - padding}
-              y2={padding + t * (height - padding * 2)}
-              stroke="#27272a"
-              strokeWidth={1}
-            />
-            <text
-              x={padding - 5}
-              y={padding + t * (height - padding * 2) + 4}
-              fill="#71717a"
-              fontSize={10}
-              textAnchor="end"
-            >
-              {(maxPrice - t * priceRange).toFixed(0)}
-            </text>
-          </g>
-        ))}
+        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+          const y = padding.top + t * (chartHeight - padding.top - padding.bottom);
+          return (
+            <g key={`grid-${i}`}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke="#27272a"
+                strokeWidth={1}
+              />
+              <text
+                x={width - padding.right + 5}
+                y={y + 4}
+                fill="#71717a"
+                fontSize={10}
+              >
+                {(maxPrice - t * priceRange).toFixed(1)}
+              </text>
+            </g>
+          );
+        })}
         
         {/* K线 */}
         {candles.map((c, i) => {
@@ -107,7 +128,7 @@ function SimpleChart({ candles, ma5, ma20 }: { candles: CandleData[]; ma5?: numb
           const color = isUp ? '#22c55e' : '#ef4444';
           
           return (
-            <g key={i}>
+            <g key={`candle-${i}`}>
               {/* 影线 */}
               <line
                 x1={x}
@@ -148,6 +169,62 @@ function SimpleChart({ candles, ma5, ma20 }: { candles: CandleData[]; ma5?: numb
             points={ma20.map((v, i) => !isNaN(v) ? `${indexToX(i)},${priceToY(v)}` : '').filter(Boolean).join(' ')}
           />
         )}
+        
+        {/* ===== 分隔线 ===== */}
+        <line
+          x1={padding.left}
+          y1={chartHeight}
+          x2={width - padding.right}
+          y2={chartHeight}
+          stroke="#3f3f46"
+          strokeWidth={1}
+        />
+        
+        {/* ===== 成交量图表区域 ===== */}
+        {/* 成交量网格线 */}
+        <line
+          x1={padding.left}
+          y1={chartHeight + gap + (volumeHeight - 20) / 2}
+          x2={width - padding.right}
+          y2={chartHeight + gap + (volumeHeight - 20) / 2}
+          stroke="#27272a"
+          strokeWidth={1}
+          strokeDasharray="4,4"
+        />
+        
+        {/* 成交量柱状图 */}
+        {candles.map((c, i) => {
+          const x = indexToX(i);
+          const isUp = c.close >= c.open;
+          const color = isUp ? '#22c55e' : '#ef4444';
+          const barHeight = c.volume * volumeYScale;
+          const y = totalHeight - 10 - barHeight;
+          
+          return (
+            <rect
+              key={`vol-${i}`}
+              x={x - xScale * 0.4}
+              y={y}
+              width={xScale * 0.8}
+              height={barHeight}
+              fill={color}
+              opacity={0.6}
+            />
+          );
+        })}
+        
+        {/* 成交量刻度 */}
+        <text x={width - padding.right + 5} y={chartHeight + gap + 10} fill="#71717a" fontSize={10}>
+          {formatVolume(maxVolume)}
+        </text>
+        <text x={width - padding.right + 5} y={totalHeight - 5} fill="#71717a" fontSize={10}>
+          0
+        </text>
+        
+        {/* 成交量标签 */}
+        <text x={padding.left} y={totalHeight - 5} fill="#71717a" fontSize={11}>
+          成交量
+        </text>
       </svg>
     </div>
   );
@@ -315,7 +392,7 @@ export function TechnicalPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-zinc-400 flex items-center gap-2">
                 <LineChart className="w-4 h-4" />
-                K线图
+                K线 & 成交量
                 {showMA && (
                   <span className="flex gap-2 text-[10px]">
                     <span className="text-amber-400">MA5</span>
