@@ -159,7 +159,8 @@ async function fetchFromStockAnalysis(symbol: string) {
       cashAndEquivalents: cash,
       totalDebt: debt,
       sharesOutstanding,
-      currency: 'USD',
+      currency: 'USD', // 单位：百万美元
+      unit: 'millions',
       source: 'stockanalysis',
     };
     
@@ -171,7 +172,7 @@ async function fetchFromStockAnalysis(symbol: string) {
 
 // 解析财务数值（处理 B/M/K 后缀）
 // Stock Analysis 数据单位：Financials in millions USD
-// 返回值单位：百万人民币
+// 返回值单位：百万美元（保持原始单位，不做货币转换）
 function parseFinancialValue(value: string): number {
   if (!value) return 0;
   
@@ -205,11 +206,9 @@ function parseFinancialValue(value: string): number {
       break;
   }
   
-  // 转换为百万人民币：百万美元 * 汇率
-  // 123,324 百万美元 * 7.2 = 887,933 百万人民币
-  const millionsCNY = millionsUSD * 7.2;
-  
-  return isNegative ? -millionsCNY : millionsCNY;
+  // 返回百万美元，不做货币转换
+  // 如：123,324 百万美元 -> 123324
+  return isNegative ? -millionsUSD : millionsUSD;
 }
 
 // 解析股本数量（不进行汇率转换）
@@ -239,79 +238,85 @@ function parseShareCount(value: string): number {
   }
 }
 
-// 预设数据作为回退
+// 预设数据作为回退（单位：百万美元）
 function getPresetStockData(symbol: string) {
   const stocks: Record<string, any> = {
     'AAPL': {
       symbol: 'AAPL',
       name: '苹果公司 (Apple)',
       market: 'US',
-      currentPrice: 195 * 7.2,
-      currentFCF: 7760,
-      cashAndEquivalents: 540,
-      totalDebt: 820,
-      sharesOutstanding: 152,
-      currency: 'CNY',
+      currentPrice: 264, // 美元股价
+      currentFCF: 123324, // 百万美元
+      cashAndEquivalents: 45317, // 百万美元
+      totalDebt: 90509, // 百万美元
+      sharesOutstanding: 14680, // 百万股 (14.68B)
+      currency: 'USD',
+      unit: 'millions',
       source: 'preset',
     },
     'MSFT': {
       symbol: 'MSFT',
       name: '微软 (Microsoft)',
       market: 'US',
-      currentPrice: 420 * 7.2,
-      currentFCF: 5040,
-      cashAndEquivalents: 580,
-      totalDebt: 420,
-      sharesOutstanding: 74,
-      currency: 'CNY',
+      currentPrice: 420,
+      currentFCF: 67400,
+      cashAndEquivalents: 78000,
+      totalDebt: 42000,
+      sharesOutstanding: 7420,
+      currency: 'USD',
+      unit: 'millions',
       source: 'preset',
     },
     '0700.HK': {
       symbol: '0700.HK',
       name: '腾讯控股',
       market: 'HK',
-      currentPrice: 385 * 0.92,
-      currentFCF: 1380,
-      cashAndEquivalents: 2880,
-      totalDebt: 2160,
-      sharesOutstanding: 93,
-      currency: 'CNY',
+      currentPrice: 385,
+      currentFCF: 150000,
+      cashAndEquivalents: 288000,
+      totalDebt: 216000,
+      sharesOutstanding: 9300,
+      currency: 'HKD',
+      unit: 'millions',
       source: 'preset',
     },
     'TSLA': {
       symbol: 'TSLA',
       name: '特斯拉 (Tesla)',
       market: 'US',
-      currentPrice: 175 * 7.2,
-      currentFCF: 720,
-      cashAndEquivalents: 215,
-      totalDebt: 72,
-      sharesOutstanding: 32,
-      currency: 'CNY',
+      currentPrice: 175,
+      currentFCF: 4400,
+      cashAndEquivalents: 29100,
+      totalDebt: 7200,
+      sharesOutstanding: 3200,
+      currency: 'USD',
+      unit: 'millions',
       source: 'preset',
     },
     'NVDA': {
       symbol: 'NVDA',
       name: '英伟达 (NVIDIA)',
       market: 'US',
-      currentPrice: 120 * 7.2,
-      currentFCF: 3780,
-      cashAndEquivalents: 180,
-      totalDebt: 72,
-      sharesOutstanding: 246,
-      currency: 'CNY',
+      currentPrice: 120,
+      currentFCF: 37800,
+      cashAndEquivalents: 25900,
+      totalDebt: 8500,
+      sharesOutstanding: 24600,
+      currency: 'USD',
+      unit: 'millions',
       source: 'preset',
     },
     'GOOGL': {
       symbol: 'GOOGL',
       name: '谷歌 (Alphabet)',
       market: 'US',
-      currentPrice: 165 * 7.2,
-      currentFCF: 4750,
-      cashAndEquivalents: 780,
-      totalDebt: 250,
-      sharesOutstanding: 125,
-      currency: 'CNY',
+      currentPrice: 165,
+      currentFCF: 72700,
+      cashAndEquivalents: 101000,
+      totalDebt: 13200,
+      sharesOutstanding: 12500,
+      currency: 'USD',
+      unit: 'millions',
       source: 'preset',
     },
   };
