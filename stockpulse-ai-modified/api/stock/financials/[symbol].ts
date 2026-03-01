@@ -122,7 +122,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     // 获取当前股价 (从页面中提取)
     let currentPrice = 0;
     const priceMatch = html.match(/"price":\s*([\d.]+)/) || 
-                       html.match(/data-price="([\d.]+)") ||
+                       html.match(/data-price="([\d.]+)"/) ||
                        $('span[data-testid="price"]').text().match(/([\d.]+)/);
     if (priceMatch) {
       currentPrice = parseFloat(priceMatch[1]);
