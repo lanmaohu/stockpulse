@@ -36,7 +36,7 @@ export function CalculationSteps({ steps }: CalculationStepsProps) {
   const collapseAll = () => setExpandedSteps([]);
 
   return (
-    <div className="bg-zinc-950 border border-zinc-900 rounded-3xl shadow-sm overflow-hidden">
+    <div className="bg-zinc-950 border border-zinc-900 rounded-3xl shadow-sm overflow-hidden w-full">
       {/* Header */}
       <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 border-b border-zinc-800 px-8 py-6">
         <div className="flex items-center justify-between">

@@ -39,7 +39,7 @@ export function DCFResults({ result, inputData }: DCFResultsProps) {
   const verdict = getVerdictConfig(result.valuationVerdict);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       {/* 估值结论卡片 */}
       <div className="bg-zinc-950 border border-zinc-900 rounded-3xl shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 border-b border-zinc-800 px-8 py-6">

@@ -150,11 +150,11 @@ function App() {
 
                 </TabsList>
 
-                <TabsContent value="summary" className="mt-0">
+                <TabsContent value="summary" className="mt-0 w-full">
                   <DCFResults result={result} inputData={inputData} />
                 </TabsContent>
 
-                <TabsContent value="steps" className="mt-0">
+                <TabsContent value="steps" className="mt-0 w-full">
                   <CalculationSteps steps={result.calculationSteps} />
                 </TabsContent>
 
