@@ -36,18 +36,22 @@ function App() {
             onClick={() => setActivePage('dcf')}
             label="DCF估值"
           />
+          {/* 技术面分析页面（暂时隐藏）
           <NavButton
             icon={LineChart}
             isActive={activePage === 'technical'}
             onClick={() => setActivePage('technical')}
             label="技术面分析"
           />
+          */}
+          {/* 仪表盘页面（暂时隐藏）
           <NavButton
             icon={BarChart3}
             isActive={activePage === 'dashboard'}
             onClick={() => setActivePage('dashboard')}
             label="仪表盘"
           />
+          */}
         </div>
       </div>
 
@@ -61,8 +65,12 @@ function App() {
 
         {/* 页面内容 */}
         {activePage === 'dcf' && <DCFPage />}
+        {/* 技术面分析页面（暂时隐藏）
         {activePage === 'technical' && <TechnicalPage />}
+        */}
+        {/* 仪表盘页面（暂时隐藏）
         {activePage === 'dashboard' && <DashboardPage />}
+        */}
 
         {/* Toast通知 */}
         <Toaster position="top-center" richColors />
