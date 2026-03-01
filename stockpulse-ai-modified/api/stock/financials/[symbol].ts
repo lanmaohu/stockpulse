@@ -136,12 +136,21 @@ function extractGrowthRates(html: string, label: string): number[] {
 // 从 Stock Analysis 抓取财务数据
 async function fetchFromStockAnalysis(symbol: string) {
   const saSymbol = convertToSAFormat(symbol).toLowerCase();
+  const marketType = getMarketType(symbol);
   
-  console.log(`[API] Fetching data for ${symbol}`);
+  console.log(`[API] Fetching data for ${symbol}, market: ${marketType}`);
+  
+  // 根据市场类型构建 URL
+  const isHK = marketType === 'HK';
+  const baseUrl = isHK 
+    ? `https://stockanalysis.com/quote/hkg/${saSymbol}` 
+    : `https://stockanalysis.com/stocks/${saSymbol}`;
   
   try {
     // 1. 获取首页股价
-    const overviewUrl = `https://stockanalysis.com/stocks/${saSymbol}/`;
+    const overviewUrl = isHK 
+      ? `https://stockanalysis.com/quote/hkg/${saSymbol}/` 
+      : `https://stockanalysis.com/stocks/${saSymbol}/`;
     const overviewRes = await fetch(overviewUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -154,9 +163,10 @@ async function fetchFromStockAnalysis(symbol: string) {
     if (overviewRes.ok) {
       const overviewHtml = await overviewRes.text();
       
-      // 提取股价 - 在 NASDAQ 后面查找
-      const priceMatch = overviewHtml.match(/NASDAQ[^\d]{0,200}(\d{3,4}\.\d{2})/) ||
-                         overviewHtml.match(/>(\d{3,4}\.\d{2})<\/div>/);
+      // 提取股价 - 港股和美股格式不同
+      const priceMatch = isHK 
+        ? overviewHtml.match(/HKEX[^\d]{0,200}(\d{3,4}\.?\d{0,2})/) || overviewHtml.match(/>(\d{3,4}\.?\d{0,2})<\/div>/)
+        : overviewHtml.match(/NASDAQ[^\d]{0,200}(\d{3,4}\.\d{2})/) || overviewHtml.match(/>(\d{3,4}\.\d{2})<\/div>/);
       if (priceMatch) {
         currentPrice = parseFloat(priceMatch[1]);
       }
@@ -169,7 +179,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     }
     
     // 2. 获取 Cash Flow 页面的 Free Cash Flow
-    const cashFlowUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/cash-flow-statement/`;
+    const cashFlowUrl = `${baseUrl}/financials/cash-flow-statement/`;
     const cashFlowRes = await fetch(cashFlowUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -184,7 +194,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     }
     
     // 3. 获取 Income Statement 页面的 Revenue Growth
-    const incomeStatementUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/income-statement/`;
+    const incomeStatementUrl = `${baseUrl}/financials/income-statement/`;
     const incomeStatementRes = await fetch(incomeStatementUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -199,7 +209,7 @@ async function fetchFromStockAnalysis(symbol: string) {
     }
     
     // 4. 获取 Balance Sheet 页面的数据
-    const balanceUrl = `https://stockanalysis.com/stocks/${saSymbol}/financials/balance-sheet/`;
+    const balanceUrl = `${baseUrl}/financials/balance-sheet/`;
     const balanceRes = await fetch(balanceUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
