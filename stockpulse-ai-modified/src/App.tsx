@@ -78,7 +78,7 @@ function App() {
         </header>
 
         {/* 主内容区域 */}
-        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
+        <div className="p-8 space-y-8">
           {/* 介绍说明 */}
           {!result && (
             <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-8 shadow-sm">
