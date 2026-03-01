@@ -29,9 +29,9 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   // 组件挂载时默认加载 Apple 数据
   useEffect(() => {
     setTicker('AAPL');
-    fetchStockDataFromAPI('AAPL');
-    // 设置永续增长率为固定值 3%
+    // 设置永续增长率默认值为 3%
     handleChange('terminalGrowthRate', 3);
+    fetchStockDataFromAPI('AAPL');
   }, []);
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
@@ -61,9 +61,14 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         discountRate: stockData.wacc || 10, // 使用 API 返回的 WACC
       }));
       
-      // 设置 FCF 增长率数据
+      // 设置 FCF 增长率数据，并自动计算前5年增长率（取最近一年）
       if (stockData.fcfGrowthRates && stockData.fcfGrowthRates.length > 0) {
         setFcfGrowthRates(stockData.fcfGrowthRates);
+        // 取最近一年的 FCF 增长率作为前5年增长率默认值
+        const latestGrowthRate = Math.round(stockData.fcfGrowthRates[0]);
+        const years6to10Rate = Math.round(latestGrowthRate / 2);
+        handleChange('growthRateYears1to5', latestGrowthRate);
+        handleChange('growthRateYears6to10', years6to10Rate);
       }
       
       setCompanyName(stockData.name);
@@ -447,7 +452,11 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                 
                 <Slider
                   value={[data.growthRateYears1to5]}
-                  onValueChange={([value]) => handleChange('growthRateYears1to5', value)}
+                  onValueChange={([value]) => {
+                    handleChange('growthRateYears1to5', value);
+                    // 自动计算 6-10 年增长率为前5年的一半
+                    handleChange('growthRateYears6to10', Math.round(value / 2));
+                  }}
                   min={0}
                   max={50}
                   step={1}
@@ -464,33 +473,17 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                 0,
                 30,
                 1,
-                '预测期第6-10年的增长率，通常低于前5年，反映增长放缓（建议3-10%）'
+                '预测期第6-10年的增长率，自动设为前5年增长率的一半，反映增长放缓'
               )}
-              {/* 永续增长率 - 固定为 3% */}
-              <div className="space-y-3 p-4 bg-zinc-900/30 rounded-2xl border border-zinc-800/30">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium text-zinc-400">永续增长率</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-3.5 w-3.5 text-zinc-600 cursor-help hover:text-zinc-400" />
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
-                          <p className="max-w-xs text-xs">长期永续增长率固定为 GDP 增长率水平，通常取 3%</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <span className="text-lg font-bold text-zinc-400">
-                    3<span className="text-sm text-zinc-500 ml-0.5">%</span>
-                  </span>
-                </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-zinc-600 rounded-full" style={{ width: '60%' }} />
-                </div>
-                <p className="text-[10px] text-zinc-500">固定值，不可调整</p>
-              </div>
+              {/* 永续增长率 - 可修改，默认 3% */}
+              {sliderField(
+                '永续增长率',
+                'terminalGrowthRate',
+                0,
+                5,
+                0.5,
+                '预测期结束后的长期永续增长率，默认 3%，接近 GDP 增长率水平（建议 2-3%）'
+              )}
               {sliderField(
                 '折现率 (WACC)',
                 'discountRate',
