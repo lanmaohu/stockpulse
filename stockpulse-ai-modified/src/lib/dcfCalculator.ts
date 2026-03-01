@@ -13,13 +13,13 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     title: '输入基础财务数据',
     description: '确认用于DCF估值的基础财务数据和假设参数',
     formula: '基础数据输入',
-    calculation: `当前FCF: ${data.currentFCF}百万, 现金: ${data.cashAndEquivalents}百万, 负债: ${data.totalDebt}百万`,
+    calculation: `当前FCF: ${data.currentFCF}百万元, 现金: ${data.cashAndEquivalents}百万元, 负债: ${data.totalDebt}百万元`,
     result: '数据确认完成',
     details: [
-      `当前年度自由现金流 (FCF): ${data.currentFCF.toFixed(2)} 百万`,
-      `现金及现金等价物: ${data.cashAndEquivalents.toFixed(2)} 百万`,
-      `总负债: ${data.totalDebt.toFixed(2)} 百万`,
-      `总股本: ${data.sharesOutstanding.toFixed(2)} 亿股`,
+      `当前年度自由现金流 (FCF): ${data.currentFCF.toFixed(2)} 百万元`,
+      `现金及现金等价物: ${data.cashAndEquivalents.toFixed(2)} 百万元`,
+      `总负债: ${data.totalDebt.toFixed(2)} 百万元`,
+      `总股本: ${data.sharesOutstanding.toFixed(2)} 百万股`,
       `当前股价: ${data.currentPrice.toFixed(2)} 元`,
       `预测期年数: ${data.projectionYears} 年`,
     ]
@@ -73,10 +73,10 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     title: '预测未来自由现金流 (FCF)',
     description: '基于增长率假设，预测未来每年的自由现金流并折现',
     formula: 'FCFₜ = FCFₜ₋₁ × (1 + g)',
-    calculation: `预测期: ${data.projectionYears}年, 总现值: ${totalPV.toFixed(2)}百万`,
+    calculation: `预测期: ${data.projectionYears}年, 总现值: ${totalPV.toFixed(2)}百万元`,
     result: totalPV,
     details: projections.map(p => 
-      `${p.yearLabel}: FCF=${p.fcf.toFixed(2)}百万, 增长率=${p.growthRate}%, 折现因子=${p.discountFactor.toFixed(4)}, 现值=${p.presentValue.toFixed(2)}百万`
+      `${p.yearLabel}: FCF=${p.fcf.toFixed(2)}百万元, 增长率=${p.growthRate}%, 折现因子=${p.discountFactor.toFixed(4)}, 现值=${p.presentValue.toFixed(2)}百万元`
     )
   });
 
@@ -95,13 +95,13 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     calculation: `TV = ${lastFCF.toFixed(2)} × (1 + ${data.terminalGrowthRate}%) / (${data.discountRate}% - ${data.terminalGrowthRate}%)`,
     result: terminalValue,
     details: [
-      `最后一年FCF (FCFₙ): ${lastFCF.toFixed(2)} 百万`,
+      `最后一年FCF (FCFₙ): ${lastFCF.toFixed(2)} 百万元`,
       `永续增长率 (g₃): ${data.terminalGrowthRate}%`,
       `折现率 (r): ${data.discountRate}%`,
       `终值计算公式: ${lastFCF.toFixed(2)} × ${(1 + data.terminalGrowthRate / 100).toFixed(4)} / ${((data.discountRate - data.terminalGrowthRate) / 100).toFixed(4)}`,
-      `终值 (TV): ${terminalValue.toFixed(2)} 百万`,
+      `终值 (TV): ${terminalValue.toFixed(2)} 百万元`,
       `终值折现因子: ${terminalDiscountFactor.toFixed(4)}`,
-      `终值现值: ${terminalValuePV.toFixed(2)} 百万`,
+      `终值现值: ${terminalValuePV.toFixed(2)} 百万元`,
     ]
   });
 
@@ -116,9 +116,9 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     calculation: `${totalPV.toFixed(2)} + ${terminalValuePV.toFixed(2)}`,
     result: enterpriseValue,
     details: [
-      `预测期现金流现值总和: ${totalPV.toFixed(2)} 百万`,
-      `终值现值: ${terminalValuePV.toFixed(2)} 百万`,
-      `企业价值 (EV): ${enterpriseValue.toFixed(2)} 百万`,
+      `预测期现金流现值总和: ${totalPV.toFixed(2)} 百万元`,
+      `终值现值: ${terminalValuePV.toFixed(2)} 百万元`,
+      `企业价值 (EV): ${enterpriseValue.toFixed(2)} 百万元`,
     ]
   });
 
@@ -133,11 +133,11 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     calculation: `${enterpriseValue.toFixed(2)} + ${data.cashAndEquivalents.toFixed(2)} - ${data.totalDebt.toFixed(2)}`,
     result: equityValue,
     details: [
-      `企业价值 (EV): ${enterpriseValue.toFixed(2)} 百万`,
-      `加: 现金及现金等价物: ${data.cashAndEquivalents.toFixed(2)} 百万`,
-      `减: 总负债: ${data.totalDebt.toFixed(2)} 百万`,
-      `净债务: ${(data.totalDebt - data.cashAndEquivalents).toFixed(2)} 百万`,
-      `股权价值: ${equityValue.toFixed(2)} 百万`,
+      `企业价值 (EV): ${enterpriseValue.toFixed(2)} 百万元`,
+      `加: 现金及现金等价物: ${data.cashAndEquivalents.toFixed(2)} 百万元`,
+      `减: 总负债: ${data.totalDebt.toFixed(2)} 百万元`,
+      `净债务: ${(data.totalDebt - data.cashAndEquivalents).toFixed(2)} 百万元`,
+      `股权价值: ${equityValue.toFixed(2)} 百万元`,
     ]
   });
 
@@ -152,8 +152,8 @@ export function calculateDCF(data: DCFInputData): DCFResult {
     calculation: `${equityValue.toFixed(2)} / ${data.sharesOutstanding.toFixed(2)}`,
     result: intrinsicValuePerShare,
     details: [
-      `股权价值: ${equityValue.toFixed(2)} 百万`,
-      `总股本: ${data.sharesOutstanding.toFixed(2)} 亿股`,
+      `股权价值: ${equityValue.toFixed(2)} 百万元`,
+      `总股本: ${data.sharesOutstanding.toFixed(2)} 百万股`,
       `每股内在价值: ${intrinsicValuePerShare.toFixed(2)} 元`,
     ]
   });
