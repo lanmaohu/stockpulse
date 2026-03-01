@@ -22,7 +22,7 @@ const stepIcons: Record<number, React.ReactNode> = {
 };
 
 export function CalculationSteps({ steps }: CalculationStepsProps) {
-  const [expandedSteps, setExpandedSteps] = useState<number[]>([1, 2, 3]);
+  const [expandedSteps, setExpandedSteps] = useState<number[]>(steps.map(s => s.step));
 
   const toggleStep = (step: number) => {
     setExpandedSteps(prev => 
