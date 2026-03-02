@@ -126,42 +126,6 @@ export function calculateRSI(data: number[], period: number = 14): number[] {
   return result;
 }
 
-// 布林带 BOLL
-export interface BollingerBands {
-  upper: number[];
-  middle: number[];
-  lower: number[];
-}
-
-export function calculateBOLL(
-  data: number[],
-  period: number = 20,
-  multiplier: number = 2
-): BollingerBands {
-  const sma = calculateSMA(data, period);
-  const upper: number[] = [];
-  const lower: number[] = [];
-  
-  for (let i = 0; i < data.length; i++) {
-    if (isNaN(sma[i])) {
-      upper.push(NaN);
-      lower.push(NaN);
-      continue;
-    }
-    
-    // 计算标准差
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) {
-      sum += Math.pow(data[j] - sma[i], 2);
-    }
-    const stdDev = Math.sqrt(sum / period);
-    
-    upper.push(sma[i] + multiplier * stdDev);
-    lower.push(sma[i] - multiplier * stdDev);
-  }
-  
-  return { upper, middle: sma, lower };
-}
 
 // KDJ 随机指标
 export interface KDJResult {

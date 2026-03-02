@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Slider } from '@/components/ui/slider';
 import { ALL_STOCKS, findStockByCode, convertToDCFInput, STOCKS_BY_MARKET } from '@/lib/stockData';
 import { validateDCFInput } from '@/lib/dcfCalculator';
+import { YEARS_6_TO_10_GROWTH_MULTIPLIER, DEFAULT_TERMINAL_GROWTH_RATE } from '@/lib/constants';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -31,8 +32,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   // 组件挂载时默认加载腾讯数据
   useEffect(() => {
     setTicker('0700.HK');
-    // 设置永续增长率默认值为 3%
-    handleChange('terminalGrowthRate', 3);
+    handleChange('terminalGrowthRate', DEFAULT_TERMINAL_GROWTH_RATE);
     fetchStockDataFromAPI('0700.HK');
   }, []);
 
@@ -91,8 +91,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         setRevenueGrowthRates(stockData.revenueGrowthRates);
         // 取最近一年的 Revenue Growth 作为前5年增长率默认值
         const latestGrowthRate = Math.round(stockData.revenueGrowthRates[0]);
-        // 第6-10年增长率在前5年基础上减少20%
-        const years6to10Rate = Math.round(latestGrowthRate * 0.8);
+        const years6to10Rate = Math.round(latestGrowthRate * YEARS_6_TO_10_GROWTH_MULTIPLIER);
         handleChange('growthRateYears1to5', latestGrowthRate);
         handleChange('growthRateYears6to10', years6to10Rate);
       }
@@ -500,7 +499,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
                   onValueChange={([value]) => {
                     handleChange('growthRateYears1to5', value);
                     // 第6-10年增长率在前5年基准值上减少20%（即前5年的80%）
-                    handleChange('growthRateYears6to10', Math.round(value * 0.8));
+                    handleChange('growthRateYears6to10', Math.round(value * YEARS_6_TO_10_GROWTH_MULTIPLIER));
                   }}
                   min={0}
                   max={100}

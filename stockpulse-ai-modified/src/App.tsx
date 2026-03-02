@@ -4,14 +4,13 @@ import { calculateDCF } from '@/lib/dcfCalculator';
 import { DCFInputForm } from '@/components/DCFInputForm';
 import { DCFResults } from '@/components/DCFResults';
 import { CalculationSteps } from '@/components/CalculationSteps';
-import { TechnicalPage } from '@/pages/TechnicalPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
-import { Calculator, BarChart3, ListOrdered, Activity, PieChart, LineChart } from 'lucide-react';
+import { Calculator, BarChart3, ListOrdered, Activity, PieChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import './App.css';
 
-type PageType = 'dcf' | 'technical' | 'dashboard';
+type PageType = 'dcf';
 
 function App() {
   const [activePage, setActivePage] = useState<PageType>('dcf');
@@ -36,22 +35,6 @@ function App() {
             onClick={() => setActivePage('dcf')}
             label="DCF估值"
           />
-          {/* 技术面分析页面（暂时隐藏）
-          <NavButton
-            icon={LineChart}
-            isActive={activePage === 'technical'}
-            onClick={() => setActivePage('technical')}
-            label="技术面分析"
-          />
-          */}
-          {/* 仪表盘页面（暂时隐藏）
-          <NavButton
-            icon={BarChart3}
-            isActive={activePage === 'dashboard'}
-            onClick={() => setActivePage('dashboard')}
-            label="仪表盘"
-          />
-          */}
         </div>
       </div>
 
@@ -65,12 +48,6 @@ function App() {
 
         {/* 页面内容 */}
         {activePage === 'dcf' && <DCFPage />}
-        {/* 技术面分析页面（暂时隐藏）
-        {activePage === 'technical' && <TechnicalPage />}
-        */}
-        {/* 仪表盘页面（暂时隐藏）
-        {activePage === 'dashboard' && <DashboardPage />}
-        */}
 
         {/* Toast通知 */}
         <Toaster position="top-center" richColors />
@@ -206,25 +183,6 @@ function DCFPage() {
             本站仅提供数据展示与技术交流，不构成任何投资建议。股市有风险，入市需谨慎。
           </p>
         </footer>
-      </div>
-    </>
-  );
-}
-
-// 仪表盘页面（占位）
-function DashboardPage() {
-  return (
-    <>
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-md border-b border-zinc-800 px-8 py-4">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-white">仪表盘</h1>
-        </div>
-      </header>
-      <div className="p-8">
-        <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-          <BarChart3 className="w-16 h-16 mb-4 opacity-50" />
-          <p>仪表盘功能开发中...</p>
-        </div>
       </div>
     </>
   );

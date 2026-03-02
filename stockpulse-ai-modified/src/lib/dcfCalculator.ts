@@ -1,4 +1,5 @@
 import { type DCFInputData, type DCFResult, type YearlyProjection, type DCFCalculationStep } from '@/types/dcf';
+import { SENSITIVITY_DISCOUNT_RATES, SENSITIVITY_GROWTH_RATES, VALUATION_THRESHOLD_PERCENT } from '@/lib/constants';
 
 export interface ValidationError {
   field: keyof DCFInputData | 'general';
@@ -209,9 +210,9 @@ export function calculateDCF(data: DCFInputData): DCFResult {
   const upsidePotential = ((intrinsicValuePerShare - data.currentPrice) / data.currentPrice) * 100;
   let valuationVerdict: 'undervalued' | 'fair' | 'overvalued';
   
-  if (upsidePotential > 15) {
+  if (upsidePotential > VALUATION_THRESHOLD_PERCENT) {
     valuationVerdict = 'undervalued';
-  } else if (upsidePotential < -15) {
+  } else if (upsidePotential < -VALUATION_THRESHOLD_PERCENT) {
     valuationVerdict = 'overvalued';
   } else {
     valuationVerdict = 'fair';
@@ -267,53 +268,43 @@ export function calculateDCF(data: DCFInputData): DCFResult {
 }
 
 /**
- * 生成敏感性分析数据
+ * 核心计算：仅返回每股内在价值，供敏感性分析复用
  */
-function generateSensitivityAnalysis(data: DCFInputData) {
-  const discountRates = [8, 9, 10, 11, 12];  // 折现率变化范围
-  const growthRates = [2, 2.5, 3, 3.5, 4];   // 永续增长率变化范围
-  
-  const values: number[][] = [];
-  
-  for (const gr of growthRates) {
-    const row: number[] = [];
-    for (const dr of discountRates) {
-      // 临时修改参数计算估值
-      const tempData = { ...data, discountRate: dr, terminalGrowthRate: gr };
-      const result = quickCalculate(tempData);
-      row.push(result);
-    }
-    values.push(row);
-  }
-  
-  return { discountRates, growthRates, values };
-}
-
-/**
- * 快速计算（仅返回每股价值，用于敏感性分析）
- */
-function quickCalculate(data: DCFInputData): number {
+function computeIntrinsicValue(data: DCFInputData): number {
   let currentFCF = data.currentFCF;
-  const projections: number[] = [];
-  
+  let totalPV = 0;
+
   for (let year = 1; year <= data.projectionYears; year++) {
     const growthRate = year <= 5 ? data.growthRateYears1to5 : data.growthRateYears6to10;
     currentFCF = currentFCF * (1 + growthRate / 100);
     const discountFactor = Math.pow(1 + data.discountRate / 100, year);
-    projections.push(currentFCF / discountFactor);
+    totalPV += currentFCF / discountFactor;
   }
-  
-  const totalPV = projections.reduce((sum, p) => sum + p, 0);
-  const lastFCF = currentFCF;
-  const terminalValue = (lastFCF * (1 + data.terminalGrowthRate / 100)) 
+
+  const terminalValue = (currentFCF * (1 + data.terminalGrowthRate / 100))
     / ((data.discountRate - data.terminalGrowthRate) / 100);
   const terminalDiscountFactor = Math.pow(1 + data.discountRate / 100, data.projectionYears);
   const terminalValuePV = terminalValue / terminalDiscountFactor;
-  
+
   const enterpriseValue = totalPV + terminalValuePV;
   const equityValue = enterpriseValue + data.cashAndEquivalents - data.totalDebt;
-  
   return equityValue / data.sharesOutstanding;
+}
+
+/**
+ * 生成敏感性分析数据
+ */
+function generateSensitivityAnalysis(data: DCFInputData) {
+  const discountRates = SENSITIVITY_DISCOUNT_RATES;
+  const growthRates = SENSITIVITY_GROWTH_RATES;
+
+  const values: number[][] = growthRates.map(gr =>
+    discountRates.map(dr =>
+      computeIntrinsicValue({ ...data, discountRate: dr, terminalGrowthRate: gr })
+    )
+  );
+
+  return { discountRates, growthRates, values };
 }
 
 /**
