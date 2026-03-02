@@ -28,12 +28,12 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [revenueGrowthRates, setRevenueGrowthRates] = useState<number[]>([]);
 
-  // 组件挂载时默认加载 Apple 数据
+  // 组件挂载时默认加载腾讯数据
   useEffect(() => {
-    setTicker('AAPL');
+    setTicker('0700.HK');
     // 设置永续增长率默认值为 3%
     handleChange('terminalGrowthRate', 3);
-    fetchStockDataFromAPI('AAPL');
+    fetchStockDataFromAPI('0700.HK');
   }, []);
 
   const handleChange = (field: keyof DCFInputData, value: number) => {
