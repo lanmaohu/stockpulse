@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp, Loader2, ExternalLink } from 'lucide-react';
+import { Calculator, RotateCcw, Info, Search, Building2, Globe, TrendingUp, Loader2, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Slider } from '@/components/ui/slider';
 import { ALL_STOCKS, findStockByCode, convertToDCFInput, STOCKS_BY_MARKET } from '@/lib/stockData';
+import { validateDCFInput } from '@/lib/dcfCalculator';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -144,6 +145,11 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateDCFInput(data);
+    if (errors.length > 0) {
+      errors.forEach(err => toast.error(err.message));
+      return;
+    }
     onCalculate(data);
   };
 
@@ -533,6 +539,16 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               )}
             </div>
           </div>
+
+          {/* 永续增长率 vs 折现率约束警告 */}
+          {data.terminalGrowthRate >= data.discountRate && (
+            <div className="flex items-start gap-3 p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl">
+              <AlertTriangle className="h-4 w-4 text-rose-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-rose-400">
+                永续增长率（{data.terminalGrowthRate}%）必须小于折现率（{data.discountRate}%），否则 Gordon 增长模型的终值公式分母为零或负数，计算结果无效。
+              </p>
+            </div>
+          )}
 
           {/* 预测期设置 */}
           <div className="space-y-4">

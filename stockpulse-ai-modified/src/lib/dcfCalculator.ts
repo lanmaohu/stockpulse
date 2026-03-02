@@ -1,10 +1,57 @@
 import { type DCFInputData, type DCFResult, type YearlyProjection, type DCFCalculationStep } from '@/types/dcf';
 
+export interface ValidationError {
+  field: keyof DCFInputData | 'general';
+  message: string;
+}
+
+/**
+ * 校验 DCF 输入参数，返回所有错误信息
+ */
+export function validateDCFInput(data: DCFInputData): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  if (data.sharesOutstanding <= 0) {
+    errors.push({ field: 'sharesOutstanding', message: '总股本必须大于 0' });
+  }
+  if (data.currentPrice <= 0) {
+    errors.push({ field: 'currentPrice', message: '当前股价必须大于 0' });
+  }
+  if (data.growthRateYears1to5 < 0) {
+    errors.push({ field: 'growthRateYears1to5', message: '前5年增长率不能为负数' });
+  }
+  if (data.growthRateYears6to10 < 0) {
+    errors.push({ field: 'growthRateYears6to10', message: '第6-10年增长率不能为负数' });
+  }
+  if (data.terminalGrowthRate < 0) {
+    errors.push({ field: 'terminalGrowthRate', message: '永续增长率不能为负数' });
+  }
+  if (data.discountRate <= 0) {
+    errors.push({ field: 'discountRate', message: '折现率（WACC）必须大于 0' });
+  }
+  // 核心约束：永续增长率必须严格小于折现率，否则 Gordon 增长模型分母为负或零
+  if (data.terminalGrowthRate >= data.discountRate) {
+    errors.push({
+      field: 'terminalGrowthRate',
+      message: `永续增长率（${data.terminalGrowthRate}%）必须小于折现率（${data.discountRate}%），否则终值公式无效`,
+    });
+  }
+  if (data.projectionYears !== 5 && data.projectionYears !== 10) {
+    errors.push({ field: 'projectionYears', message: '预测年数只能是 5 或 10' });
+  }
+
+  return errors;
+}
+
 /**
  * DCF估值计算器
  * 详细计算每一步并返回完整的计算过程
  */
 export function calculateDCF(data: DCFInputData): DCFResult {
+  const validationErrors = validateDCFInput(data);
+  if (validationErrors.length > 0) {
+    throw new Error(validationErrors.map(e => e.message).join('；'));
+  }
   const steps: DCFCalculationStep[] = [];
   
   // ===== 步骤1: 输入数据确认 =====
