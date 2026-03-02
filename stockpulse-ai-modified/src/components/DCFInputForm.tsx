@@ -26,6 +26,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
   const [selectedMarket, setSelectedMarket] = useState<'ALL' | 'US' | 'HK' | 'CN'>('ALL');
   const [isLoading, setIsLoading] = useState(false);
   const [revenueGrowthRates, setRevenueGrowthRates] = useState<number[]>([]);
+  const [historicalFCF, setHistoricalFCF] = useState<number[]>([]);
 
   // 组件挂载时默认加载 Apple 数据
   useEffect(() => {
@@ -95,6 +96,13 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
         handleChange('growthRateYears1to5', latestGrowthRate);
         handleChange('growthRateYears6to10', years6to10Rate);
       }
+
+      // 设置近5年历史 FCF 数据
+      if (stockData.historicalFCF && stockData.historicalFCF.length > 0) {
+        setHistoricalFCF(stockData.historicalFCF);
+      } else {
+        setHistoricalFCF([]);
+      }
       
       setCompanyName(stockData.name);
       setLastFetchedTicker(stockData.symbol);
@@ -153,6 +161,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
     setCompanyName('');
     setLastFetchedTicker('');
     setRevenueGrowthRates([]);
+    setHistoricalFCF([]);
     onReset();
   };
 
@@ -407,12 +416,29 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {inputField(
-                '当前年度自由现金流 (FCF)',
-                'currentFCF',
-                '百万元',
-                '公司最近一个财年的自由现金流，可通过经营活动现金流减去资本支出计算得出'
-              )}
+              <div className="space-y-1">
+                {inputField(
+                  '当前年度自由现金流 (FCF)',
+                  'currentFCF',
+                  '百万元',
+                  '公司最近一个财年的自由现金流，可通过经营活动现金流减去资本支出计算得出'
+                )}
+                {historicalFCF.length > 0 && (
+                  <div className="bg-zinc-950/50 rounded-lg px-3 py-2 border border-zinc-800/50">
+                    <p className="text-[10px] text-zinc-500 mb-1">近5年 FCF（百万，最新→最早）</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {historicalFCF.map((value, index) => (
+                        <span
+                          key={index}
+                          className={`text-[11px] font-medium ${value >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}
+                        >
+                          {Math.round(value).toLocaleString()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               {inputField(
                 '现金及现金等价物',
                 'cashAndEquivalents',

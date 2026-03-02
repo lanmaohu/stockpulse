@@ -126,6 +126,7 @@ async function fetchFromEastMoney(symbol: string) {
     
     // 获取现金流量表数据
     let currentFCF = 0;
+    let historicalFCF: number[] = [];
     try {
       const cashflowUrl = `https://f10.eastmoney.com/CashFlow/CashFlowAjax?code=${emCode.replace('.', '')}`;
       const cashflowRes = await fetch(cashflowUrl, {
@@ -134,7 +135,7 @@ async function fetchFromEastMoney(symbol: string) {
           'Referer': 'https://f10.eastmoney.com/',
         },
       });
-      
+
       if (cashflowRes.ok) {
         const cashflowData = await cashflowRes.json();
         if (cashflowData?.xjll?.length > 0) {
@@ -144,6 +145,12 @@ async function fetchFromEastMoney(symbol: string) {
           // 购建固定资产等支付的现金 (单位：万元，转为百万)
           const capex = Math.abs(latest.CAPEX || 0) / 100;
           currentFCF = operatingCF - capex;
+          // 提取近5年历史 FCF
+          historicalFCF = cashflowData.xjll.slice(0, 5).map((item: any) => {
+            const opCF = (item.NETCASHOPERATE || 0) / 100;
+            const cx = Math.abs(item.CAPEX || 0) / 100;
+            return opCF - cx;
+          });
         }
       }
     } catch (e) {
@@ -192,6 +199,7 @@ async function fetchFromEastMoney(symbol: string) {
       market: 'CN' as const,
       currentPrice,
       currentFCF,
+      historicalFCF,
       revenueGrowthRates,
       cashAndEquivalents,
       totalDebt,
@@ -368,6 +376,26 @@ function extractGrowthRates(html: string, label: string): number[] {
   return [];
 }
 
+// 从 HTML 提取 FCF 行的多列数值（最多5年，最新优先）
+function extractHistoricalRowValues(html: string, labelPatterns: string[]): number[] {
+  const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+  const rows = cleanHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+
+  for (const row of rows) {
+    const text = row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const pattern of labelPatterns) {
+      if (text.toLowerCase().includes(pattern.toLowerCase())) {
+        if (text.includes('Per Share') || text.includes('Margin') || text.includes('Ratio')) continue;
+        if (pattern === 'Free Cash Flow' && text.includes('Growth')) continue;
+        // 匹配带逗号的数字（含括号负数，如 (1,234)）
+        const matches = text.match(/\(?\d{1,3}(?:,\d{3})+\)?/g) || [];
+        return matches.slice(0, 5).map(m => parseValue(m));
+      }
+    }
+  }
+  return [];
+}
+
 // 从 Stock Analysis 抓取财务数据
 async function fetchFromStockAnalysis(symbol: string) {
   const saSymbol = convertToSAFormat(symbol).toLowerCase();
@@ -430,10 +458,12 @@ async function fetchFromStockAnalysis(symbol: string) {
     });
     
     let fcfValue = '';
-    
+    let historicalFCF: number[] = [];
+
     if (cashFlowRes.ok) {
       const cashFlowHtml = await cashFlowRes.text();
       fcfValue = extractRowValue(cashFlowHtml, ['Free Cash Flow']);
+      historicalFCF = extractHistoricalRowValues(cashFlowHtml, ['Free Cash Flow']);
     }
     
     // 3. 获取 Income Statement 页面的 Revenue Growth
@@ -497,6 +527,7 @@ async function fetchFromStockAnalysis(symbol: string) {
       market: marketType,
       currentPrice,
       currentFCF: parseValue(fcfValue),
+      historicalFCF,
       revenueGrowthRates, // 使用 Revenue Growth 替代 FCF Growth
       cashAndEquivalents: parseValue(cashValue),
       totalDebt: parseValue(debtValue),
