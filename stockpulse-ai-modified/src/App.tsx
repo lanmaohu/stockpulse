@@ -4,10 +4,11 @@ import { calculateDCF } from '@/lib/dcfCalculator';
 import { DCFInputForm } from '@/components/DCFInputForm';
 import { DCFResults } from '@/components/DCFResults';
 import { CalculationSteps } from '@/components/CalculationSteps';
+import { AIAnalysisPanel } from '@/components/AIAnalysisPanel';
 import { TechnicalPage } from '@/pages/TechnicalPage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
-import { Calculator, BarChart3, ListOrdered, Activity, PieChart, LineChart } from 'lucide-react';
+import { Calculator, BarChart3, ListOrdered, Activity, PieChart, LineChart, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import './App.css';
 
@@ -83,9 +84,13 @@ function App() {
 function DCFPage() {
   const [result, setResult] = useState<DCFResult | null>(null);
   const [inputData, setInputData] = useState<DCFInputData>(DEFAULT_INPUT_DATA);
+  const [symbol, setSymbol] = useState('');
+  const [companyName, setCompanyName] = useState('');
 
-  const handleCalculate = (data: DCFInputData) => {
+  const handleCalculate = (data: DCFInputData, sym: string, name: string) => {
     setInputData(data);
+    setSymbol(sym);
+    setCompanyName(name);
     const dcfResult = calculateDCF(data);
     setResult(dcfResult);
     setTimeout(() => {
@@ -166,22 +171,28 @@ function DCFPage() {
         {result && (
           <div id="results-section" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Tabs defaultValue="summary" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6 bg-zinc-950 border border-zinc-900 p-1 rounded-2xl">
-                <TabsTrigger 
-                  value="summary" 
+              <TabsList className="grid w-full grid-cols-3 mb-6 bg-zinc-950 border border-zinc-900 p-1 rounded-2xl">
+                <TabsTrigger
+                  value="summary"
                   className="flex items-center gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-black rounded-xl"
                 >
                   <BarChart3 className="h-4 w-4" />
                   估值结果
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="steps" 
+                <TabsTrigger
+                  value="steps"
                   className="flex items-center gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-black rounded-xl"
                 >
                   <ListOrdered className="h-4 w-4" />
                   计算步骤
                 </TabsTrigger>
-
+                <TabsTrigger
+                  value="ai"
+                  className="flex items-center gap-2 data-[state=active]:bg-violet-600 data-[state=active]:text-white rounded-xl"
+                >
+                  <Brain className="h-4 w-4" />
+                  AI 分析
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="summary" className="mt-0 w-full">
@@ -192,7 +203,14 @@ function DCFPage() {
                 <CalculationSteps steps={result.calculationSteps} />
               </TabsContent>
 
-
+              <TabsContent value="ai" className="mt-0 w-full">
+                <AIAnalysisPanel
+                  symbol={symbol}
+                  companyName={companyName}
+                  dcfData={inputData}
+                  dcfResult={result}
+                />
+              </TabsContent>
             </Tabs>
           </div>
         )}

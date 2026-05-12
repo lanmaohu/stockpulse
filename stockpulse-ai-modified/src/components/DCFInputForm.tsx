@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface DCFInputFormProps {
-  onCalculate: (data: DCFInputData) => void;
+  onCalculate: (data: DCFInputData, symbol: string, companyName: string) => void;
   onReset: () => void;
 }
 
@@ -144,7 +144,7 @@ export function DCFInputForm({ onCalculate, onReset }: DCFInputFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onCalculate(data);
+    onCalculate(data, ticker || lastFetchedTicker, companyName);
   };
 
   const handleReset = () => {
